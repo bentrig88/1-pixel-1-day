@@ -37,6 +37,7 @@ export default function App() {
   const [fadeTransition, setFadeTransition] = useState<FadeTransition>(null)
   const scatterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const transitionGenRef = useRef(0)
+  const lastTransitionRef = useRef(-1)  // -1 = none yet
 
   // ── Responsive viewport — re-renders on resize ───────────────────────
   const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight })
@@ -203,7 +204,9 @@ export default function App() {
     }
     const gen = ++transitionGenRef.current
 
-    const type = Math.floor(Math.random() * 3)  // 0 = direct, 1 = scatter, 2 = fade
+    const choices = [0, 1, 2].filter(t => t !== lastTransitionRef.current)
+    const type = choices[Math.floor(Math.random() * choices.length)]
+    lastTransitionRef.current = type
 
     if (type === 1) {
       // Scatter: fly to random grid cells, pause 300ms, land on final positions
