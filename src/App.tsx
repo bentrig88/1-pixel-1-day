@@ -35,6 +35,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('year')
   const [scatterPositions, setScatterPositions] = useState<{ x: number; y: number }[] | null>(null)
   const [fadeTransition, setFadeTransition] = useState<FadeTransition>(null)
+  const [moveDuration, setMoveDuration] = useState(0)  // 0 = instant (resize); elevated only during transitions
   const scatterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const transitionGenRef = useRef(0)
   const lastTransitionRef = useRef(-1)  // -1 = none yet
@@ -164,8 +165,7 @@ export default function App() {
   const displayPositions = scatterPositions
     ?? (fadeTransition?.phase === 'out' ? fadeTransition.oldPositions : null)
     ?? pixelPositions
-  // Scatter phase 1: fast 0.4s; fade transition: instant (0) so jump is invisible; direct: 0.5s
-  const moveDuration = scatterPositions !== null ? 0.4 : fadeTransition !== null ? 0 : 0.5
+  // moveDuration is state (default 0): only elevated during intentional transitions, never on resize
 
   // ── Camera zoom — uses pixelPositions so it works correctly in all view modes ──
   let zoomX = 0, zoomY = 0, zoomScale = 1
@@ -209,17 +209,22 @@ export default function App() {
     lastTransitionRef.current = type
 
     if (type === 1) {
-      // Scatter: fly to random grid cells, pause 300ms, land on final positions
+      // Scatter: fly to random grid cells (0.5s), pause 300ms, land on final positions (0.5s)
       const pos = Array.from({ length: layout.totalDays }, () => ({
         x: Math.floor(Math.random() * bgCols) * cellSize,
         y: Math.floor(Math.random() * bgRows) * cellSize,
       }))
       setScatterPositions(pos)
       setFadeTransition(null)
+      setMoveDuration(0.5)
       scatterTimerRef.current = setTimeout(() => {
         if (transitionGenRef.current !== gen) return
-        setScatterPositions(null)
-        scatterTimerRef.current = null
+        setScatterPositions(null)  // pixels now animate to final positions
+        scatterTimerRef.current = setTimeout(() => {
+          if (transitionGenRef.current !== gen) return
+          setMoveDuration(0)        // landing animation complete
+          scatterTimerRef.current = null
+        }, 600)
       }, 700)
     } else if (type === 2) {
       // Fade: fade out in random order → instant position jump → fade in in random order
@@ -227,6 +232,7 @@ export default function App() {
       const capturedPos = pixelPositions.map(p => ({ x: p.x, y: p.y }))
       setFadeTransition({ phase: 'out', rankOut: randomRanks(N), rankIn: randomRanks(N), oldPositions: capturedPos })
       setScatterPositions(null)
+      setMoveDuration(0)  // position jump is always instant during fade
       const PHASE_MS = 900  // 0.5s stagger + 0.4s fade = 0.9s per phase
       scatterTimerRef.current = setTimeout(() => {
         if (transitionGenRef.current !== gen) return
@@ -238,9 +244,15 @@ export default function App() {
         }, PHASE_MS)
       }, PHASE_MS)
     } else {
-      // Direct: stagger pixels sequentially to final positions
+      // Direct: stagger pixels sequentially to final positions (1.0s stagger + 0.5s each = 1.5s)
       setScatterPositions(null)
       setFadeTransition(null)
+      setMoveDuration(0.5)
+      scatterTimerRef.current = setTimeout(() => {
+        if (transitionGenRef.current !== gen) return
+        setMoveDuration(0)
+        scatterTimerRef.current = null
+      }, 1600)
     }
 
     setViewMode(newMode)
