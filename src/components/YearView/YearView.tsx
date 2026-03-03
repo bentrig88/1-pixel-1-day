@@ -44,6 +44,9 @@ interface Props {
   pixelOverrides: { target: number; delay: number; duration: number }[] | null
   todayMonth: number
   todayWeek: number
+  isEditMode?: boolean
+  draggingDayIndex?: number | null
+  onPixelDragStart?: (dayIndex: number) => void
 }
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -53,6 +56,7 @@ export function YearView({
   layout, gridLayout, days, onDayClick, selectedDayIndex,
   viewMode, pixelPositions, monthLabelPositions, weekLabelPositions,
   staggerDelay, moveDuration, pixelOverrides, todayMonth, todayWeek,
+  isEditMode, draggingDayIndex, onPixelDragStart,
 }: Props) {
   const { pixelSize, gap, bgCols, bgRows, gridW, gridH } = gridLayout
   const hasSel = selectedDayIndex !== null
@@ -162,6 +166,9 @@ export function YearView({
           onClick={onDayClick}
           isSelected={day.dayIndex === selectedDayIndex}
           isDimmed={hasSel && day.dayIndex !== selectedDayIndex}
+          isEditMode={isEditMode}
+          isDragging={draggingDayIndex === day.dayIndex}
+          onDragStart={onPixelDragStart}
         />
       ))}
     </div>

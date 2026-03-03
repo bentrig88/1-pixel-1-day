@@ -15,17 +15,27 @@ interface Props {
   onClick: (dayIndex: number) => void
   isSelected?: boolean
   isDimmed?: boolean
+  isEditMode?: boolean
+  isDragging?: boolean
+  onDragStart?: (dayIndex: number) => void
 }
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December']
 
-export function Pixel({ day, size, x, y, delay, moveDuration, opacityOverride, onClick, isSelected, isDimmed }: Props) {
-  const isBlinking = day.state === 'today' && !isSelected && !isDimmed
+export function Pixel({ day, size, x, y, delay, moveDuration, opacityOverride, onClick, isSelected, isDimmed, isEditMode, isDragging, onDragStart }: Props) {
+  const isBlinking = day.state === 'today' && !isSelected && !isDimmed && !isEditMode
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
 
   const dateLabel = `${WEEKDAYS[day.date.getDay()]} ${day.date.getDate()} ${MONTHS[day.date.getMonth()]} ${day.date.getFullYear()}`
+
+  const editScale  = isDragging ? 1.2 : isEditMode ? 1.1 : 1
+  const editFilter = isDragging
+    ? 'drop-shadow(0px 6px 16px rgba(0,0,0,0.18))'
+    : isEditMode
+      ? 'drop-shadow(0px 2px 6px rgba(0,0,0,0.35))'
+      : 'drop-shadow(0px 0px 0px rgba(0,0,0,0))'
 
   return (
     <>
@@ -36,6 +46,8 @@ export function Pixel({ day, size, x, y, delay, moveDuration, opacityOverride, o
           day.hasReminder ? styles.hasReminder : '',
           isDimmed ? styles.dimmed : '',
           isSelected ? styles.selected : '',
+          isEditMode ? styles.editMode : '',
+          isDragging ? styles.dragging : '',
         ].join(' ')}
         style={{ position: 'absolute', left: 0, top: 0, width: size, height: size }}
         initial={{ x, y }}
@@ -45,19 +57,31 @@ export function Pixel({ day, size, x, y, delay, moveDuration, opacityOverride, o
           opacity: opacityOverride
             ? opacityOverride.target
             : isDimmed ? 0.15 : isBlinking ? [1, 1, 0.25, 1, 1] : 1,
-          scale: 1,
+          scale: editScale,
+          filter: editFilter,
         }}
-        onClick={e => { e.stopPropagation(); onClick(day.dayIndex) }}
-        onMouseEnter={e => setTooltipPos({ x: e.clientX, y: e.clientY })}
-        onMouseMove={e => setTooltipPos({ x: e.clientX, y: e.clientY })}
+        onClick={e => {
+          e.stopPropagation()
+          if (!isEditMode) onClick(day.dayIndex)
+        }}
+        onPointerDown={e => {
+          if (!isEditMode || !onDragStart) return
+          e.stopPropagation()
+          e.currentTarget.setPointerCapture(e.pointerId)
+          onDragStart(day.dayIndex)
+        }}
+        onMouseEnter={e => { if (!isEditMode) setTooltipPos({ x: e.clientX, y: e.clientY }) }}
+        onMouseMove={e => { if (!isEditMode) setTooltipPos({ x: e.clientX, y: e.clientY }) }}
         onMouseLeave={() => setTooltipPos(null)}
-        whileHover={{
+        whileHover={isEditMode ? undefined : {
           scale: isSelected || isDimmed ? 1 : 1.3,
           transition: { type: 'spring', stiffness: 400, damping: 25 },
         }}
         transition={{
           x: { type: 'tween', duration: moveDuration, ease: [0.65, 0, 0.35, 1], delay },
           y: { type: 'tween', duration: moveDuration, ease: [0.65, 0, 0.35, 1], delay },
+          scale: { type: 'tween', duration: 0.15 },
+          filter: { type: 'tween', duration: 0.15 },
           opacity: opacityOverride
             ? { type: 'tween', duration: opacityOverride.duration, delay: opacityOverride.delay }
             : isBlinking
@@ -65,7 +89,7 @@ export function Pixel({ day, size, x, y, delay, moveDuration, opacityOverride, o
               : { type: 'tween', duration: 0.5, ease: [0.65, 0, 0.35, 1] },
         }}
       />
-      {tooltipPos && !isSelected && createPortal(
+      {tooltipPos && !isSelected && !isEditMode && createPortal(
         <div
           className={styles.tooltip}
           style={{ left: tooltipPos.x, top: tooltipPos.y - 24 }}

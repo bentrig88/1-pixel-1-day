@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useYear } from './hooks/useYear'
 import { YearView, type GridLayout, type MonthLabelPos, type WeekLabelPos } from './components/YearView/YearView'
 import { DayDetail } from './components/DayDetail/DayDetail'
 import { TopBar } from './components/TopBar/TopBar'
 import { BottomBar, type ViewMode } from './components/BottomBar/BottomBar'
+import { SavePopup } from './components/SavePopup/SavePopup'
 import type { DayInfo } from './hooks/useYear'
 import styles from './App.module.css'
 
@@ -20,6 +21,24 @@ const WK_NUM_PANELS = 3   // panels (groups of weeks) side-by-side
 const WK_PANEL_GAP  = 2   // empty cols between adjacent panels
 const WK_PANEL_W    = WK_LABEL_COLS + WK_DAY_COLS          // 14 cols per panel
 const WK_CONTENT_W  = WK_NUM_PANELS * WK_PANEL_W + (WK_NUM_PANELS - 1) * WK_PANEL_GAP  // 46
+
+// ── Custom layout persistence ─────────────────────────────────────────
+const LS_KEY = '1p1d-custom-layouts'
+
+interface CustomLayout {
+  id: string
+  name: string
+  positions: { col: number; row: number }[]
+}
+
+function loadCustomLayouts(): CustomLayout[] {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
 
 type FadeTransition = {
   phase: 'out' | 'in'
@@ -48,6 +67,19 @@ export default function App() {
   const transitionGenRef = useRef(0)
   const lastTransitionRef = useRef(-1)  // -1 = none yet
 
+  // ── Custom view state ─────────────────────────────────────────────────
+  const [customLayouts, setCustomLayouts] = useState<CustomLayout[]>(loadCustomLayouts)
+  const [activeCustomId, setActiveCustomId] = useState<string | null>(null)
+  const [isEditingCustom, setIsEditingCustom] = useState(false)
+  const [editPositions, setEditPositions] = useState<{ col: number; row: number }[] | null>(null)
+  const [draggingDayIndex, setDraggingDayIndex] = useState<number | null>(null)
+  const [showSavePopup, setShowSavePopup] = useState(false)
+
+  // Persist custom layouts whenever they change
+  useEffect(() => {
+    localStorage.setItem(LS_KEY, JSON.stringify(customLayouts))
+  }, [customLayouts])
+
   // ── Responsive viewport — re-renders on resize ───────────────────────
   const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight })
   useEffect(() => {
@@ -69,9 +101,6 @@ export default function App() {
     selectedDayIndex !== null ? days[selectedDayIndex] : null
 
   // ── Grid layout computation ──────────────────────────────────────────
-  // Top bar height = 2 × cellSize (dynamic). To avoid circularity, first
-  // compute a raw pixelSize using full viewport height, derive cellSize and
-  // thus topBarH, then recompute pixelSize with the actual remaining height.
   const rawPixelSize = Math.max(1, Math.floor(
     Math.min(
       viewW / ((layout.gridCols + MIN_SIDE_COLS * 2) * 1.15),
@@ -83,7 +112,7 @@ export default function App() {
   const topBarFontSize = Math.round(rawCellSize * 0.65)
   const topBarAccentSize = Math.round(rawCellSize * 0.80)
 
-  const viewH = viewport.h - TOP_BAR_H * 2  // subtract both top and bottom bar
+  const viewH = viewport.h - TOP_BAR_H * 2
   const pixelSize = Math.max(1, Math.floor(
     Math.min(
       viewW / ((layout.gridCols + MIN_SIDE_COLS * 2) * 1.15),
@@ -107,17 +136,14 @@ export default function App() {
     gridW, gridH,
   }
 
-  // ── Camera zoom — zoom is derived so that pixelSize * ZOOM === DETAIL_SIZE ──
-  // This makes every zoomed square the exact same size as the DayDetail card.
   const ZOOM = DETAIL_SIZE / pixelSize
 
   const gridOffsetX = (viewW - gridW) / 2
   const gridOffsetY = (viewH - gridH) / 2
 
-  // ── View mode stagger — only active on the render where mode changes ──
-  const MONTH_LABEL_COLS = 8  // cell-widths reserved for month name labels
+  // ── View mode stagger ─────────────────────────────────────────────────
+  const MONTH_LABEL_COLS = 8
   const prevViewModeRef = useRef<ViewMode>(viewMode)
-  // Stagger only for direct transition — suppressed during scatter and fade
   const staggerDelay = prevViewModeRef.current !== viewMode && scatterPositions === null && fadeTransition === null
     ? 1.0 / (layout.totalDays - 1)
     : 0
@@ -127,16 +153,20 @@ export default function App() {
   const pixelPositions = useMemo(() => {
     const { yearOffsetCol, yearOffsetRow, cellSize, bgCols, bgRows } = gridLayout
 
-    // Pre-compute weeks layout values (used for every day in weeks mode)
+    // Pre-compute weeks layout values
     const numWeeks  = Math.ceil((days.length + janFirstMon) / 7)
     const wkRows    = Math.ceil(numWeeks / WK_NUM_PANELS)
     const wkStartC  = Math.max(0, Math.floor((bgCols - WK_CONTENT_W) / 2))
     const wkStartR  = Math.floor((bgRows - wkRows) / 2)
-    const wkStride  = WK_PANEL_W + WK_PANEL_GAP  // cols between panel origins (16)
+    const wkStride  = WK_PANEL_W + WK_PANEL_GAP
+
+    // Custom positions source (edit takes priority over saved)
+    const customSrc = editPositions
+      ?? customLayouts.find(l => l.id === activeCustomId)?.positions
+      ?? null
 
     return days.map(day => {
       if (viewMode === 'months') {
-        // Snap to grid: 12 month rows, each separated by 1 gap row (23 rows total)
         const startCol = Math.floor((bgCols - (MONTH_LABEL_COLS + 31)) / 2)
         const startRow = Math.floor((bgRows - 23) / 2)
         return {
@@ -148,22 +178,25 @@ export default function App() {
         const wk      = Math.floor((day.dayIndex + janFirstMon) / 7)
         const pCol    = Math.floor(wk / wkRows)
         const pRow    = wk % wkRows
-        const dow     = day.date.getDay()  // 0=Sun … 6=Sat
-        // Mon–Fri → cols 0–4 ; gap at col 5 ; Sat → col 6 ; Sun → col 7
+        const dow     = day.date.getDay()
         const localC  = dow === 0 ? 7 : dow === 6 ? 6 : dow - 1
         return {
           x: (wkStartC + pCol * wkStride + WK_LABEL_COLS + localC) * cellSize,
           y: (wkStartR + pRow) * cellSize,
         }
       }
-      // year / custom: use year layout positions
+      if (viewMode === 'custom' && customSrc) {
+        const pos = customSrc[day.dayIndex]
+        return { x: pos.col * cellSize, y: pos.row * cellSize }
+      }
+      // year / custom fallback: year layout positions
       const cell = layout.cells[day.dayIndex]
       return {
         x: (yearOffsetCol + cell.col) * cellSize,
         y: (yearOffsetRow + cell.row) * cellSize,
       }
     })
-  }, [viewMode, days, layout, gridLayout, janFirstMon])
+  }, [viewMode, days, layout, gridLayout, janFirstMon, editPositions, customLayouts, activeCustomId])
 
   // ── Month label positions ─────────────────────────────────────────────
   const monthLabelPositions = useMemo<MonthLabelPos[]>(() => {
@@ -172,8 +205,8 @@ export default function App() {
     const startRow = Math.floor((bgRows - 23) / 2)
     return Array.from({ length: 12 }, (_, month) => ({
       month,
-      x: (startCol + MONTH_LABEL_COLS - 1) * cellSize,   // right edge of white box, 1 square gap to pixels
-      y: (startRow + month * 2) * cellSize + pixelSize / 2,  // vertically centered on pixel row
+      x: (startCol + MONTH_LABEL_COLS - 1) * cellSize,
+      y: (startRow + month * 2) * cellSize + pixelSize / 2,
     }))
   }, [gridLayout])
 
@@ -187,7 +220,7 @@ export default function App() {
     const stride   = WK_PANEL_W + WK_PANEL_GAP
     return Array.from({ length: numWeeks }, (_, w) => ({
       week: w,
-      x: (startC + Math.floor(w / wkRows) * stride + WK_LABEL_COLS - 1) * cellSize,  // 1-cell gap before pixels
+      x: (startC + Math.floor(w / wkRows) * stride + WK_LABEL_COLS - 1) * cellSize,
       y: (startR + (w % wkRows)) * cellSize + pixelSize / 2,
     }))
   }, [gridLayout, layout.totalDays, janFirstMon])
@@ -208,14 +241,12 @@ export default function App() {
   const todayIdx   = days.find(d => d.state === 'today')?.dayIndex ?? -1
   const todayWeek  = todayIdx >= 0 ? Math.floor((todayIdx + janFirstMon) / 7) : -1
 
-  // ── Scatter transition ────────────────────────────────────────────────
   // During fade-out keep old positions; during fade-in (or scatter/direct) use new positions
   const displayPositions = scatterPositions
     ?? (fadeTransition?.phase === 'out' ? fadeTransition.oldPositions : null)
     ?? pixelPositions
-  // moveDuration is state (default 0): only elevated during intentional transitions, never on resize
 
-  // ── Camera zoom — uses pixelPositions so it works correctly in all view modes ──
+  // ── Camera zoom ───────────────────────────────────────────────────────
   let zoomX = 0, zoomY = 0, zoomScale = 1
   if (selectedDayIndex !== null) {
     const pos = pixelPositions[selectedDayIndex]
@@ -244,8 +275,33 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedDayIndex, layout.totalDays])
 
+  // ── Drag-and-drop for custom edit mode ───────────────────────────────
+  useEffect(() => {
+    if (draggingDayIndex === null) return
+    function onMove(e: PointerEvent) {
+      // grid top-left in viewport coords: gridOffsetX, TOP_BAR_H + gridOffsetY
+      const relX = e.clientX - gridOffsetX
+      const relY = e.clientY - (TOP_BAR_H + gridOffsetY)
+      const col = Math.max(0, Math.min(bgCols - 1, Math.round((relX - pixelSize / 2) / cellSize)))
+      const row = Math.max(0, Math.min(bgRows - 1, Math.round((relY - pixelSize / 2) / cellSize)))
+      setEditPositions(prev => {
+        if (!prev) return prev
+        const next = [...prev]
+        next[draggingDayIndex] = { col, row }
+        return next
+      })
+    }
+    function onUp() { setDraggingDayIndex(null) }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [draggingDayIndex, gridOffsetX, gridOffsetY, cellSize, bgCols, bgRows, pixelSize, TOP_BAR_H])
+
   // ── View mode transition — randomly picks from 3 transition types ──
-  function handleViewModeChange(newMode: ViewMode) {
+  function runTransition(newMode: ViewMode, afterSetup?: () => void) {
     if (scatterTimerRef.current !== null) {
       clearTimeout(scatterTimerRef.current)
       scatterTimerRef.current = null
@@ -257,7 +313,6 @@ export default function App() {
     lastTransitionRef.current = type
 
     if (type === 1) {
-      // Scatter: fly to random grid cells (0.5s), pause 300ms, land on final positions (0.5s)
       const pos = Array.from({ length: layout.totalDays }, () => ({
         x: Math.floor(Math.random() * bgCols) * cellSize,
         y: Math.floor(Math.random() * bgRows) * cellSize,
@@ -267,21 +322,20 @@ export default function App() {
       setMoveDuration(0.5)
       scatterTimerRef.current = setTimeout(() => {
         if (transitionGenRef.current !== gen) return
-        setScatterPositions(null)  // pixels now animate to final positions
+        setScatterPositions(null)
         scatterTimerRef.current = setTimeout(() => {
           if (transitionGenRef.current !== gen) return
-          setMoveDuration(0)        // landing animation complete
+          setMoveDuration(0)
           scatterTimerRef.current = null
         }, 600)
       }, 700)
     } else if (type === 2) {
-      // Fade: fade out in random order → instant position jump → fade in in random order
       const N = layout.totalDays
       const capturedPos = pixelPositions.map(p => ({ x: p.x, y: p.y }))
       setFadeTransition({ phase: 'out', rankOut: randomRanks(N), rankIn: randomRanks(N), oldPositions: capturedPos })
       setScatterPositions(null)
-      setMoveDuration(0)  // position jump is always instant during fade
-      const PHASE_MS = 900  // 0.5s stagger + 0.4s fade = 0.9s per phase
+      setMoveDuration(0)
+      const PHASE_MS = 900
       scatterTimerRef.current = setTimeout(() => {
         if (transitionGenRef.current !== gen) return
         setFadeTransition(prev => prev && { ...prev, phase: 'in' })
@@ -292,7 +346,6 @@ export default function App() {
         }, PHASE_MS)
       }, PHASE_MS)
     } else {
-      // Direct: stagger pixels sequentially to final positions (1.0s stagger + 0.5s each = 1.5s)
       setScatterPositions(null)
       setFadeTransition(null)
       setMoveDuration(0.5)
@@ -304,6 +357,67 @@ export default function App() {
     }
 
     setViewMode(newMode)
+    afterSetup?.()
+  }
+
+  function handleViewModeChange(newMode: ViewMode) {
+    if (newMode === 'custom') {
+      // Convert current pixel positions to col/row for edit starting point
+      const converted = pixelPositions.map(pos => ({
+        col: Math.round(pos.x / cellSize),
+        row: Math.round(pos.y / cellSize),
+      }))
+      runTransition('custom', () => {
+        setEditPositions(converted)
+        setActiveCustomId(null)
+        setIsEditingCustom(true)
+      })
+    } else {
+      setIsEditingCustom(false)
+      setEditPositions(null)
+      setActiveCustomId(null)
+      runTransition(newMode)
+    }
+  }
+
+  function handleCustomLayoutSelect(id: string) {
+    setIsEditingCustom(false)
+    setEditPositions(null)
+    setActiveCustomId(id)
+    runTransition('custom')
+  }
+
+  function handleEditCustom() {
+    const layout = customLayouts.find(l => l.id === activeCustomId)
+    if (!layout) return
+    setEditPositions([...layout.positions])
+    setIsEditingCustom(true)
+  }
+
+  function handleDeleteCustom() {
+    setCustomLayouts(prev => prev.filter(l => l.id !== activeCustomId))
+    setActiveCustomId(null)
+    setIsEditingCustom(false)
+    setEditPositions(null)
+    runTransition('year')
+  }
+
+  function handlePopupSave(name: string) {
+    if (!editPositions) return
+    if (activeCustomId) {
+      // Update existing layout
+      setCustomLayouts(prev => prev.map(l =>
+        l.id === activeCustomId ? { ...l, name, positions: editPositions } : l
+      ))
+    } else {
+      // Create new layout
+      const id = crypto.randomUUID()
+      setCustomLayouts(prev => [...prev, { id, name, positions: editPositions }])
+      setActiveCustomId(id)
+    }
+    setIsEditingCustom(false)
+    setEditPositions(null)
+    setShowSavePopup(false)
   }
 
   function handleDayClick(dayIndex: number) {
@@ -321,6 +435,9 @@ export default function App() {
   function handleSave(dayIndex: number, reminder: string) {
     setReminders(prev => ({ ...prev, [dayIndex]: reminder }))
   }
+
+  // The active custom layout name (for save popup pre-fill when editing)
+  const activeLayoutName = customLayouts.find(l => l.id === activeCustomId)?.name ?? ''
 
   return (
     <div className={styles.app}>
@@ -350,6 +467,9 @@ export default function App() {
             pixelOverrides={pixelOverrides}
             todayMonth={todayMonth}
             todayWeek={todayWeek}
+            isEditMode={isEditingCustom}
+            draggingDayIndex={draggingDayIndex}
+            onPixelDragStart={setDraggingDayIndex}
           />
         </motion.div>
 
@@ -363,12 +483,52 @@ export default function App() {
             height={DETAIL_SIZE}
           />
         </div>
+
+        {/* Floating custom view controls — bottom-left of main */}
+        <AnimatePresence>
+          {viewMode === 'custom' && (
+            <motion.div
+              key={isEditingCustom ? 'save-ctrl' : 'edit-ctrl'}
+              className={styles.customControls}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.2 }}
+            >
+              {isEditingCustom ? (
+                <button className={styles.ctrlBtn} onClick={e => { e.stopPropagation(); setShowSavePopup(true) }}>
+                  Save
+                </button>
+              ) : activeCustomId !== null ? (
+                <>
+                  <button className={styles.ctrlBtn} onClick={e => { e.stopPropagation(); handleEditCustom() }}>
+                    Edit
+                  </button>
+                  <button className={`${styles.ctrlBtn} ${styles.ctrlBtnDanger}`} onClick={e => { e.stopPropagation(); handleDeleteCustom() }}>
+                    Delete
+                  </button>
+                </>
+              ) : null}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
+
       <BottomBar
         height={TOP_BAR_H}
         fontSize={topBarFontSize}
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
+        customLayouts={customLayouts}
+        activeCustomId={activeCustomId}
+        onCustomLayoutSelect={handleCustomLayoutSelect}
+      />
+
+      <SavePopup
+        isOpen={showSavePopup}
+        initialName={activeLayoutName}
+        onSave={handlePopupSave}
+        onCancel={() => setShowSavePopup(false)}
       />
     </div>
   )

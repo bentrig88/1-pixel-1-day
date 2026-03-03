@@ -10,6 +10,17 @@
   box-shadow: none;
 }
 
+.editMode {
+  cursor: grab;
+  box-shadow: none;
+  user-select: none;
+}
+
+.dragging {
+  cursor: grabbing;
+  z-index: 10;
+}
+
 .past {
   background: var(--color-pixel-past);
 }
