@@ -65,13 +65,12 @@
 }
 
 .ctrlBtnDanger {
-  background: transparent;
-  border: 1px solid rgba(204, 34, 0, 0.5);
+  background: #ffffff;
+  border: 2px solid var(--color-pixel-today);
   color: var(--color-pixel-today);
 }
 
 .ctrlBtnDanger:hover {
-  background: rgba(204, 34, 0, 0.1);
-  border-color: var(--color-pixel-today);
+  background: rgba(204, 34, 0, 0.08);
   opacity: 1;
 }
