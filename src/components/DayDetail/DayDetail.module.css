@@ -1,0 +1,109 @@
+.panel {
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  cursor: default;
+  pointer-events: auto;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* ── Date header ────────────────────────────────────────────────────── */
+.dateHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+}
+
+.weekday {
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.dayNum {
+  font-size: 52px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.month {
+  font-size: 22px;
+  font-weight: bold;
+}
+
+/* ── Textarea ───────────────────────────────────────────────────────── */
+.textarea {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  background: transparent;
+  border: none;
+  border-top: 1px solid;
+  border-bottom: 1px solid;
+  padding: 12px 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  resize: none;
+  outline: none;
+  line-height: 1.6;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────── */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.charCount {
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.saveBtn {
+  border: none;
+  padding: 6px 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+/* ── Past (light gray bg) — dark text ──────────────────────────────── */
+.past .weekday,
+.past .dayNum,
+.past .month     { color: #1a1a1a; }
+.past .weekday,
+.past .month     { opacity: 0.6; }
+.past .textarea  { color: #1a1a1a; border-color: rgba(0, 0, 0, 0.2); }
+.past .textarea::placeholder { color: rgba(0, 0, 0, 0.35); font-style: italic; }
+.past .charCount { color: rgba(0, 0, 0, 0.45); }
+.past .saveBtn   { background: #1a1a1a; color: #e0e0e0; }
+.past .saveBtn:hover { background: #333; }
+
+/* ── Today (red bg) — white text ───────────────────────────────────── */
+.today .weekday,
+.today .dayNum,
+.today .month    { color: white; }
+.today .weekday,
+.today .month    { opacity: 0.75; }
+.today .textarea { color: white; border-color: rgba(255, 255, 255, 0.35); }
+.today .textarea::placeholder { color: rgba(255, 255, 255, 0.5); font-style: italic; }
+.today .charCount { color: rgba(255, 255, 255, 0.6); }
+.today .saveBtn  { background: white; color: var(--color-pixel-today); }
+.today .saveBtn:hover { background: rgba(255, 255, 255, 0.85); }
+
+/* ── Future (dark bg) — white text ─────────────────────────────────── */
+.future .weekday,
+.future .dayNum,
+.future .month   { color: white; }
+.future .weekday,
+.future .month   { opacity: 0.6; }
+.future .textarea { color: white; border-color: rgba(255, 255, 255, 0.2); }
+.future .textarea::placeholder { color: rgba(255, 255, 255, 0.4); font-style: italic; }
+.future .charCount { color: rgba(255, 255, 255, 0.5); }
+.future .saveBtn { background: white; color: var(--color-pixel-future); }
+.future .saveBtn:hover { background: rgba(255, 255, 255, 0.85); }

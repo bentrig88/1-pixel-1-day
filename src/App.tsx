@@ -1,0 +1,151 @@
+import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import { useYear } from './hooks/useYear'
+import { YearView, type GridLayout } from './components/YearView/YearView'
+import { DayDetail } from './components/DayDetail/DayDetail'
+import { TopBar } from './components/TopBar/TopBar'
+import type { DayInfo } from './hooks/useYear'
+import styles from './App.module.css'
+
+const CURRENT_YEAR = new Date().getFullYear()
+const DETAIL_SIZE = 400   // px — DayDetail is a square; zoom is derived from this
+const TOP_BAR_H = 40
+const MIN_SIDE_COLS = 4   // empty columns guaranteed on each side of the year
+
+export default function App() {
+  const [reminders, setReminders] = useState<Record<number, string>>({})
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null)
+
+  // ── Responsive viewport — re-renders on resize ───────────────────────
+  const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight })
+  useEffect(() => {
+    function onResize() {
+      setViewport({ w: window.innerWidth, h: window.innerHeight })
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const viewW = viewport.w
+  const viewH = viewport.h - TOP_BAR_H
+
+  const { layout, days, daysLeft } = useYear(CURRENT_YEAR, reminders)
+
+  const selectedDay: DayInfo | null =
+    selectedDayIndex !== null ? days[selectedDayIndex] : null
+
+  // ── Grid layout computation ──────────────────────────────────────────
+  // Divide by 1.15 to account for the gap (cellSize ≈ pixelSize × 1.15),
+  // and add MIN_SIDE_COLS padding on each side so the year is never cropped.
+  const pixelSize = Math.max(1, Math.floor(
+    Math.min(
+      viewW / ((layout.gridCols + MIN_SIDE_COLS * 2) * 1.15),
+      viewH / (layout.gridRows * 1.15),
+    )
+  ))
+  const gap = Math.max(1, Math.floor(pixelSize * 0.15))
+  const cellSize = pixelSize + gap
+
+  const bgCols = Math.max(layout.gridCols, Math.floor(viewW / cellSize))
+  const bgRows = Math.max(layout.gridRows, Math.floor(viewH / cellSize))
+  const yearOffsetCol = Math.floor((bgCols - layout.gridCols) / 2)
+  const yearOffsetRow = Math.floor((bgRows - layout.gridRows) / 2)
+  const gridW = bgCols * cellSize - gap
+  const gridH = bgRows * cellSize - gap
+
+  const gridLayout: GridLayout = {
+    pixelSize, gap, cellSize,
+    bgCols, bgRows,
+    yearOffsetCol, yearOffsetRow,
+    gridW, gridH,
+  }
+
+  // ── Camera zoom — zoom is derived so that pixelSize * ZOOM === DETAIL_SIZE ──
+  // This makes every zoomed square the exact same size as the DayDetail card.
+  const ZOOM = DETAIL_SIZE / pixelSize
+
+  const gridOffsetX = (viewW - gridW) / 2
+  const gridOffsetY = (viewH - gridH) / 2
+
+  let zoomX = 0, zoomY = 0, zoomScale = 1
+  if (selectedDayIndex !== null) {
+    const cell = layout.cells[selectedDayIndex]
+    const bgCol = yearOffsetCol + cell.col
+    const bgRow = yearOffsetRow + cell.row
+    const pixelCenterX = gridOffsetX + bgCol * cellSize + pixelSize / 2
+    const pixelCenterY = gridOffsetY + bgRow * cellSize + pixelSize / 2
+    zoomX = ZOOM * (viewW / 2 - pixelCenterX)
+    zoomY = ZOOM * (viewH / 2 - pixelCenterY)
+    zoomScale = ZOOM
+  }
+
+  // ── Arrow key navigation ─────────────────────────────────────────────
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (selectedDayIndex === null) return
+      if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        setSelectedDayIndex(i => Math.min(layout.totalDays - 1, (i ?? 0) + 1))
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        setSelectedDayIndex(i => Math.max(0, (i ?? 0) - 1))
+      } else if (e.key === 'Escape') {
+        setSelectedDayIndex(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedDayIndex, layout.totalDays])
+
+  function handleDayClick(dayIndex: number) {
+    setSelectedDayIndex(dayIndex)
+  }
+
+  function handleMainClick() {
+    if (selectedDayIndex !== null) setSelectedDayIndex(null)
+  }
+
+  function handleClose() {
+    setSelectedDayIndex(null)
+  }
+
+  function handleSave(dayIndex: number, reminder: string) {
+    setReminders(prev => ({ ...prev, [dayIndex]: reminder }))
+  }
+
+  return (
+    <div className={styles.app}>
+      <TopBar today={new Date()} daysLeft={daysLeft} />
+
+      <main
+        className={`${styles.main} ${selectedDayIndex !== null ? styles.zoomed : ''}`}
+        onClick={handleMainClick}
+      >
+        <motion.div
+          className={styles.gridWrapper}
+          animate={{ x: zoomX, y: zoomY, scale: zoomScale }}
+          transition={{ type: 'tween', duration: 0.7, ease: [0.65, 0, 0.35, 1] }}
+        >
+          <YearView
+            layout={layout}
+            gridLayout={gridLayout}
+            days={days}
+            onDayClick={handleDayClick}
+            selectedDayIndex={selectedDayIndex}
+          />
+        </motion.div>
+
+        {/* Overlay lives inside main so it shares the same coordinate space as the grid */}
+        <div className={styles.detailOverlay}>
+          <DayDetail
+            day={selectedDay}
+            onClose={handleClose}
+            onSave={handleSave}
+            width={DETAIL_SIZE}
+            height={DETAIL_SIZE}
+          />
+        </div>
+      </main>
+    </div>
+  )
+}
