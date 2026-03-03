@@ -87,6 +87,8 @@ export function YearView({
                   fontFamily: 'var(--font-mono)',
                   fontSize: Math.max(8, pixelSize * 0.8),
                   whiteSpace: 'nowrap',
+                  background: '#fff',
+                  padding: `0 ${gap * 2}px`,
                   color: month === todayMonth
                     ? 'var(--color-pixel-today)'
                     : '#888',
