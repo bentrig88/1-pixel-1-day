@@ -74,10 +74,10 @@ export function Pixel({ day, size, x, y, delay, scaleDelay, moveDuration, opacit
         onMouseEnter={e => setTooltipPos({ x: e.clientX, y: e.clientY })}
         onMouseMove={e => setTooltipPos({ x: e.clientX, y: e.clientY })}
         onMouseLeave={() => setTooltipPos(null)}
-        whileHover={isEditMode ? undefined : {
-          scale: isSelected || isDimmed ? 1 : 1.3,
-          transition: { type: 'spring', stiffness: 400, damping: 25 },
-        }}
+        whileHover={isEditMode
+          ? { scale: isDragging ? 1.5 : 1, transition: { type: 'spring', stiffness: 400, damping: 25 } }
+          : { scale: isSelected || isDimmed ? 1 : 1.3, transition: { type: 'spring', stiffness: 400, damping: 25 } }
+        }
         transition={{
           x: { type: 'tween', duration: moveDuration, ease: [0.65, 0, 0.35, 1], delay },
           y: { type: 'tween', duration: moveDuration, ease: [0.65, 0, 0.35, 1], delay },
