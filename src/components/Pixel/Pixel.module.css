@@ -4,17 +4,24 @@
   flex-shrink: 0;
 }
 
-.pixel:not(.dimmed):not(.selected):hover {
+/* Normal hover: outline highlight */
+.pixel:not(.dimmed):not(.selected):not(.editMode):hover {
   outline: 2px solid var(--color-bg);
   outline-offset: -2px;
   box-shadow: none;
 }
 
+/* Edit mode: no outline — just lighten the color */
 .editMode {
   cursor: grab;
   box-shadow: none;
   user-select: none;
+  outline: none;
 }
+
+.editMode.past:hover    { background: #c8c8c8; }
+.editMode.today:hover   { background: #e03818; }
+.editMode.future:hover  { background: #484848; }
 
 .dragging {
   cursor: grabbing;

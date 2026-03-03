@@ -149,6 +149,13 @@ export default function App() {
     : 0
   useEffect(() => { prevViewModeRef.current = viewMode }, [viewMode])
 
+  // ── Edit mode enter stagger — only on the first render after isEditingCustom turns true ──
+  const prevIsEditingRef = useRef(isEditingCustom)
+  const editEnterStagger = !prevIsEditingRef.current && isEditingCustom
+    ? 0.8 / Math.max(1, layout.totalDays - 1)
+    : 0
+  useEffect(() => { prevIsEditingRef.current = isEditingCustom }, [isEditingCustom])
+
   // ── Pixel positions per view mode ─────────────────────────────────────
   const pixelPositions = useMemo(() => {
     const { yearOffsetCol, yearOffsetRow, cellSize, bgCols, bgRows } = gridLayout
@@ -362,16 +369,23 @@ export default function App() {
 
   function handleViewModeChange(newMode: ViewMode) {
     if (newMode === 'custom') {
-      // Convert current pixel positions to col/row for edit starting point
+      // No scatter/fade/direct transition — pixels stay put, only scale/shadow animates
+      if (scatterTimerRef.current !== null) {
+        clearTimeout(scatterTimerRef.current)
+        scatterTimerRef.current = null
+      }
+      ++transitionGenRef.current
+      setScatterPositions(null)
+      setFadeTransition(null)
+      setMoveDuration(0)
       const converted = pixelPositions.map(pos => ({
         col: Math.round(pos.x / cellSize),
         row: Math.round(pos.y / cellSize),
       }))
-      runTransition('custom', () => {
-        setEditPositions(converted)
-        setActiveCustomId(null)
-        setIsEditingCustom(true)
-      })
+      setEditPositions(converted)
+      setActiveCustomId(null)
+      setIsEditingCustom(true)
+      setViewMode('custom')
     } else {
       setIsEditingCustom(false)
       setEditPositions(null)
@@ -468,6 +482,7 @@ export default function App() {
             todayMonth={todayMonth}
             todayWeek={todayWeek}
             isEditMode={isEditingCustom}
+            editEnterStagger={editEnterStagger}
             draggingDayIndex={draggingDayIndex}
             onPixelDragStart={setDraggingDayIndex}
           />
@@ -490,6 +505,7 @@ export default function App() {
             <motion.div
               key={isEditingCustom ? 'save-ctrl' : 'edit-ctrl'}
               className={styles.customControls}
+              style={{ fontSize: topBarFontSize }}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
