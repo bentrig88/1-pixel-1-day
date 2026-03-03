@@ -10,7 +10,7 @@
   flex-shrink: 0;
 }
 
-.left, .right {
+.left, .center, .right {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -29,4 +29,55 @@
 .accent {
   color: var(--theme-pixel-today);
   font-weight: bold;
+}
+
+/* ── Auth controls ───────────────────────────────────────────────────── */
+.authSection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.userName {
+  color: var(--theme-bar-text);
+  white-space: nowrap;
+}
+
+.signOutBtn {
+  background: transparent;
+  border: none;
+  color: var(--theme-bar-muted);
+  font-family: var(--font-mono);
+  font-size: inherit;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  padding: 0;
+}
+
+.signOutBtn:hover {
+  color: var(--theme-bar-text);
+}
+
+.signInBtn {
+  background: transparent;
+  border: 1px solid var(--theme-bar-muted);
+  color: var(--theme-bar-muted);
+  font-family: var(--font-mono);
+  font-size: inherit;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  padding: 2px 10px;
+}
+
+.signInBtn:hover {
+  border-color: var(--theme-bar-text);
+  color: var(--theme-bar-text);
 }

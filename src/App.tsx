@@ -1,12 +1,24 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { onAuthStateChanged } from 'firebase/auth'
+import type { User } from 'firebase/auth'
 import { useYear } from './hooks/useYear'
 import { YearView, type GridLayout, type MonthLabelPos, type WeekLabelPos } from './components/YearView/YearView'
 import { DayDetail } from './components/DayDetail/DayDetail'
 import { TopBar } from './components/TopBar/TopBar'
 import { BottomBar, type ViewMode } from './components/BottomBar/BottomBar'
 import { SavePopup } from './components/SavePopup/SavePopup'
+import { NoiseOverlay } from './components/NoiseOverlay/NoiseOverlay'
 import { THEMES, applyTheme, DEFAULT_THEME_ID } from './data/themes'
+import { FONTS, applyFont, DEFAULT_FONT_ID } from './data/fonts'
+import { auth } from './lib/firebase'
+import { signInWithGoogle, signOut } from './lib/auth'
+import {
+  loadRemindersFromFirestore, saveReminderToFirestore, migrateToFirestore,
+  loadRemindersFromLocalStorage, saveReminderToLocalStorage, clearLocalStorageReminders,
+  loadCustomLayoutsFromFirestore, saveCustomLayoutsToFirestore,
+  loadCustomLayoutsFromLocalStorage, saveCustomLayoutsToLocalStorage, clearLocalStorageCustomLayouts,
+} from './lib/db'
 import type { DayInfo } from './hooks/useYear'
 import styles from './App.module.css'
 
@@ -23,22 +35,10 @@ const WK_PANEL_GAP  = 2   // empty cols between adjacent panels
 const WK_PANEL_W    = WK_LABEL_COLS + WK_DAY_COLS          // 14 cols per panel
 const WK_CONTENT_W  = WK_NUM_PANELS * WK_PANEL_W + (WK_NUM_PANELS - 1) * WK_PANEL_GAP  // 46
 
-// ── Custom layout persistence ─────────────────────────────────────────
-const LS_KEY = '1p1d-custom-layouts'
-
 interface CustomLayout {
   id: string
   name: string
   positions: { col: number; row: number }[]
-}
-
-function loadCustomLayouts(): CustomLayout[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
 }
 
 type FadeTransition = {
@@ -58,7 +58,10 @@ function randomRanks(n: number): number[] {
 }
 
 export default function App() {
-  const [reminders, setReminders] = useState<Record<number, string>>({})
+  const [user, setUser] = useState<User | null>(null)
+  const [reminders, setReminders] = useState<Record<number, string>>(
+    () => loadRemindersFromLocalStorage(CURRENT_YEAR)
+  )
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('year')
   const [scatterPositions, setScatterPositions] = useState<{ x: number; y: number }[] | null>(null)
@@ -69,7 +72,7 @@ export default function App() {
   const lastTransitionRef = useRef(-1)  // -1 = none yet
 
   // ── Custom view state ─────────────────────────────────────────────────
-  const [customLayouts, setCustomLayouts] = useState<CustomLayout[]>(loadCustomLayouts)
+  const [customLayouts, setCustomLayouts] = useState<CustomLayout[]>(loadCustomLayoutsFromLocalStorage)
   const [activeCustomId, setActiveCustomId] = useState<string | null>(null)
   const [isEditingCustom, setIsEditingCustom] = useState(false)
   const [editPositions, setEditPositions] = useState<{ col: number; row: number }[] | null>(null)
@@ -86,10 +89,60 @@ export default function App() {
     localStorage.setItem('1p1d-theme', activeThemeId)
   }, [activeThemeId])
 
-  // Persist custom layouts whenever they change
+  // ── Font state ────────────────────────────────────────────────────────
+  const [activeFontId, setActiveFontId] = useState<string>(
+    () => localStorage.getItem('1p1d-font') ?? DEFAULT_FONT_ID
+  )
   useEffect(() => {
-    localStorage.setItem(LS_KEY, JSON.stringify(customLayouts))
-  }, [customLayouts])
+    const font = FONTS.find(f => f.id === activeFontId) ?? FONTS[0]
+    applyFont(font)
+    localStorage.setItem('1p1d-font', activeFontId)
+  }, [activeFontId])
+
+  // ── Auth + data sync ──────────────────────────────────────────────────
+  useEffect(() => {
+    return onAuthStateChanged(auth, async (u) => {
+      setUser(u)
+      if (u) {
+        // ── Reminders ──
+        const cloudReminders = await loadRemindersFromFirestore(u.uid, CURRENT_YEAR)
+        const localReminders = loadRemindersFromLocalStorage(CURRENT_YEAR)
+        if (Object.keys(cloudReminders).length === 0 && Object.keys(localReminders).length > 0) {
+          await migrateToFirestore(u.uid, CURRENT_YEAR, localReminders)
+          setReminders(localReminders)
+        } else {
+          setReminders({ ...localReminders, ...cloudReminders })
+        }
+        clearLocalStorageReminders(CURRENT_YEAR)
+
+        // ── Custom layouts ──
+        const cloudLayouts = await loadCustomLayoutsFromFirestore(u.uid)
+        const localLayouts = loadCustomLayoutsFromLocalStorage()
+        if (cloudLayouts.length === 0 && localLayouts.length > 0) {
+          await saveCustomLayoutsToFirestore(u.uid, localLayouts)
+          setCustomLayouts(localLayouts)
+        } else if (cloudLayouts.length > 0) {
+          // Merge: cloud layouts + any local layouts not already in cloud
+          const cloudIds = new Set(cloudLayouts.map(l => l.id))
+          const merged = [...cloudLayouts, ...localLayouts.filter(l => !cloudIds.has(l.id))]
+          setCustomLayouts(merged)
+        }
+        clearLocalStorageCustomLayouts()
+      } else {
+        // Signed out — fall back to localStorage
+        setReminders(loadRemindersFromLocalStorage(CURRENT_YEAR))
+        setCustomLayouts(loadCustomLayoutsFromLocalStorage())
+      }
+    })
+  }, [])
+
+  function persistLayouts(layouts: CustomLayout[]) {
+    if (user) {
+      saveCustomLayoutsToFirestore(user.uid, layouts)
+    } else {
+      saveCustomLayoutsToLocalStorage(layouts)
+    }
+  }
 
   // ── Responsive viewport — re-renders on resize ───────────────────────
   const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight })
@@ -420,7 +473,11 @@ export default function App() {
   }
 
   function handleDeleteCustom() {
-    setCustomLayouts(prev => prev.filter(l => l.id !== activeCustomId))
+    setCustomLayouts(prev => {
+      const next = prev.filter(l => l.id !== activeCustomId)
+      persistLayouts(next)
+      return next
+    })
     setActiveCustomId(null)
     setIsEditingCustom(false)
     setEditPositions(null)
@@ -431,13 +488,21 @@ export default function App() {
     if (!editPositions) return
     if (activeCustomId) {
       // Update existing layout
-      setCustomLayouts(prev => prev.map(l =>
-        l.id === activeCustomId ? { ...l, name, positions: editPositions } : l
-      ))
+      setCustomLayouts(prev => {
+        const next = prev.map(l =>
+          l.id === activeCustomId ? { ...l, name, positions: editPositions } : l
+        )
+        persistLayouts(next)
+        return next
+      })
     } else {
       // Create new layout
       const id = crypto.randomUUID()
-      setCustomLayouts(prev => [...prev, { id, name, positions: editPositions }])
+      setCustomLayouts(prev => {
+        const next = [...prev, { id, name, positions: editPositions }]
+        persistLayouts(next)
+        return next
+      })
       setActiveCustomId(id)
     }
     setIsEditingCustom(false)
@@ -458,7 +523,15 @@ export default function App() {
   }
 
   function handleSave(dayIndex: number, reminder: string) {
-    setReminders(prev => ({ ...prev, [dayIndex]: reminder }))
+    setReminders(prev => {
+      const next = { ...prev, [dayIndex]: reminder }
+      if (user) {
+        saveReminderToFirestore(user.uid, CURRENT_YEAR, dayIndex, reminder)
+      } else {
+        saveReminderToLocalStorage(CURRENT_YEAR, next)
+      }
+      return next
+    })
   }
 
   // The active custom layout name (for save popup pre-fill when editing)
@@ -466,7 +539,12 @@ export default function App() {
 
   return (
     <div className={styles.app}>
-      <TopBar today={new Date()} daysLeft={daysLeft} height={TOP_BAR_H} fontSize={topBarFontSize} accentSize={topBarAccentSize} />
+      <NoiseOverlay opacity={0.2} />
+      <TopBar
+        today={new Date()} daysLeft={daysLeft}
+        height={TOP_BAR_H} fontSize={topBarFontSize} accentSize={topBarAccentSize}
+        user={user} onSignIn={signInWithGoogle} onSignOut={signOut}
+      />
 
       <main
         className={`${styles.main} ${selectedDayIndex !== null ? styles.zoomed : ''}`}
@@ -552,6 +630,9 @@ export default function App() {
         themes={THEMES}
         activeThemeId={activeThemeId}
         onThemeChange={setActiveThemeId}
+        fonts={FONTS}
+        activeFontId={activeFontId}
+        onFontChange={setActiveFontId}
       />
 
       <SavePopup

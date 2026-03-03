@@ -22,16 +22,22 @@ interface Props {
   themes: { id: string; name: string }[]
   activeThemeId: string
   onThemeChange: (id: string) => void
+  fonts: { id: string; name: string; family: string }[]
+  activeFontId: string
+  onFontChange: (id: string) => void
 }
 
 export function BottomBar({
   height, fontSize, viewMode, onViewModeChange, customLayouts, activeCustomId, onCustomLayoutSelect,
   themes, activeThemeId, onThemeChange,
+  fonts, activeFontId, onFontChange,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [isThemeOpen, setIsThemeOpen] = useState(false)
+  const [isFontOpen, setIsFontOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const themeDropdownRef = useRef<HTMLDivElement>(null)
+  const fontDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -40,6 +46,9 @@ export function BottomBar({
       }
       if (themeDropdownRef.current && !themeDropdownRef.current.contains(e.target as Node)) {
         setIsThemeOpen(false)
+      }
+      if (fontDropdownRef.current && !fontDropdownRef.current.contains(e.target as Node)) {
+        setIsFontOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -53,6 +62,7 @@ export function BottomBar({
     : (FIXED_OPTIONS.find(o => o.value === viewMode)?.label ?? 'Visual Year')
 
   const activeThemeName = themes.find(t => t.id === activeThemeId)?.name ?? activeThemeId
+  const activeFontName  = fonts.find(f => f.id === activeFontId)?.name ?? activeFontId
 
   return (
     <footer className={styles.bar} style={{ height, fontSize }}>
@@ -125,6 +135,38 @@ export function BottomBar({
                     onClick={() => { onThemeChange(theme.id); setIsThemeOpen(false) }}
                   >
                     {theme.name}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <span className={`${styles.label} ${styles.labelGap}`}>Font :</span>
+        <div className={styles.dropdown} ref={fontDropdownRef}>
+          <div className={styles.sizer} aria-hidden="true">Pixelify Sans</div>
+          <button className={styles.trigger} onClick={() => setIsFontOpen(o => !o)}>
+            {activeFontName}
+            <span className={`${styles.arrow} ${isFontOpen ? styles.arrowOpen : ''}`}>▼</span>
+          </button>
+          <AnimatePresence>
+            {isFontOpen && (
+              <motion.div
+                className={styles.menu}
+                initial={{ opacity: 0, scaleY: 0 }}
+                animate={{ opacity: 1, scaleY: 1 }}
+                exit={{ opacity: 0, scaleY: 0 }}
+                transition={{ type: 'tween', duration: 0.15, ease: [0.65, 0, 0.35, 1] }}
+                style={{ transformOrigin: 'bottom' }}
+              >
+                {fonts.map(font => (
+                  <button
+                    key={font.id}
+                    className={`${styles.option} ${font.id === activeFontId ? styles.active : ''}`}
+                    style={{ fontFamily: font.family }}
+                    onClick={() => { onFontChange(font.id); setIsFontOpen(false) }}
+                  >
+                    {font.name}
                   </button>
                 ))}
               </motion.div>
