@@ -11,6 +11,7 @@ import styles from './App.module.css'
 const CURRENT_YEAR = new Date().getFullYear()
 const DETAIL_SIZE = 400   // px — DayDetail is a square; zoom is derived from this
 const MIN_SIDE_COLS = 4   // empty columns guaranteed on each side of the year
+const GRID_SCALE = 0.8    // reduce grid size to 80% of max to avoid oversized squares
 
 export default function App() {
   const [reminders, setReminders] = useState<Record<number, string>>({})
@@ -54,7 +55,7 @@ export default function App() {
     Math.min(
       viewW / ((layout.gridCols + MIN_SIDE_COLS * 2) * 1.15),
       viewH / (layout.gridRows * 1.15),
-    )
+    ) * GRID_SCALE
   ))
   const gap = Math.max(1, Math.floor(pixelSize * 0.15))
   const cellSize = pixelSize + gap
