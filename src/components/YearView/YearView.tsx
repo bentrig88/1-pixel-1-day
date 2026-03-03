@@ -23,6 +23,12 @@ export interface MonthLabelPos {
   y: number
 }
 
+export interface WeekLabelPos {
+  week: number   // 0-indexed (0 = "Week 1")
+  x: number
+  y: number
+}
+
 interface Props {
   layout: YearLayout
   gridLayout: GridLayout
@@ -32,10 +38,12 @@ interface Props {
   viewMode: ViewMode
   pixelPositions: { x: number; y: number }[]
   monthLabelPositions: MonthLabelPos[]
+  weekLabelPositions: WeekLabelPos[]
   staggerDelay: number
   moveDuration: number
   pixelOverrides: { target: number; delay: number; duration: number }[] | null
   todayMonth: number
+  todayWeek: number
 }
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -43,7 +51,8 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
 
 export function YearView({
   layout, gridLayout, days, onDayClick, selectedDayIndex,
-  viewMode, pixelPositions, monthLabelPositions, staggerDelay, moveDuration, pixelOverrides, todayMonth,
+  viewMode, pixelPositions, monthLabelPositions, weekLabelPositions,
+  staggerDelay, moveDuration, pixelOverrides, todayMonth, todayWeek,
 }: Props) {
   const { pixelSize, gap, bgCols, bgRows, gridW, gridH } = gridLayout
   const hasSel = selectedDayIndex !== null
@@ -97,6 +106,42 @@ export function YearView({
                 }}
               >
                 {MONTH_NAMES[month]}
+              </span>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Week labels — fade in when in weeks mode */}
+      <AnimatePresence>
+        {viewMode === 'weeks' && (
+          <motion.div
+            key="week-labels"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+          >
+            {weekLabelPositions.map(({ week, x, y }) => (
+              <span
+                key={week}
+                style={{
+                  position: 'absolute',
+                  left: x,
+                  top: y,
+                  transform: 'translate(-100%, -50%)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: Math.max(8, pixelSize * 0.8),
+                  whiteSpace: 'nowrap',
+                  background: '#fff',
+                  padding: `0 ${gap * 2}px`,
+                  color: week === todayWeek
+                    ? 'var(--color-pixel-today)'
+                    : '#888',
+                }}
+              >
+                Week {week + 1}
               </span>
             ))}
           </motion.div>

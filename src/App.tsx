@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { useYear } from './hooks/useYear'
-import { YearView, type GridLayout, type MonthLabelPos } from './components/YearView/YearView'
+import { YearView, type GridLayout, type MonthLabelPos, type WeekLabelPos } from './components/YearView/YearView'
 import { DayDetail } from './components/DayDetail/DayDetail'
 import { TopBar } from './components/TopBar/TopBar'
 import { BottomBar, type ViewMode } from './components/BottomBar/BottomBar'
@@ -12,6 +12,14 @@ const CURRENT_YEAR = new Date().getFullYear()
 const DETAIL_SIZE = 400   // px — DayDetail is a square; zoom is derived from this
 const MIN_SIDE_COLS = 4   // empty columns guaranteed on each side of the year
 const GRID_SCALE = 0.8    // reduce grid size to 80% of max to avoid oversized squares
+
+// ── Weeks view layout constants ───────────────────────────────────────
+const WK_LABEL_COLS = 6   // cols reserved for "Week NN" label per panel
+const WK_DAY_COLS   = 8   // 5 weekday + 1 gap + 2 weekend per row
+const WK_NUM_PANELS = 3   // panels (groups of weeks) side-by-side
+const WK_PANEL_GAP  = 2   // empty cols between adjacent panels
+const WK_PANEL_W    = WK_LABEL_COLS + WK_DAY_COLS          // 14 cols per panel
+const WK_CONTENT_W  = WK_NUM_PANELS * WK_PANEL_W + (WK_NUM_PANELS - 1) * WK_PANEL_GAP  // 46
 
 type FadeTransition = {
   phase: 'out' | 'in'
@@ -53,6 +61,9 @@ export default function App() {
   const viewW = viewport.w
 
   const { layout, days, daysLeft } = useYear(CURRENT_YEAR, reminders)
+
+  // Mon-based offset of Jan 1 (Mon=0 … Sun=6) — used for correct week numbering
+  const janFirstMon = days.length > 0 ? (days[0].date.getDay() + 6) % 7 : 0
 
   const selectedDay: DayInfo | null =
     selectedDayIndex !== null ? days[selectedDayIndex] : null
@@ -115,6 +126,14 @@ export default function App() {
   // ── Pixel positions per view mode ─────────────────────────────────────
   const pixelPositions = useMemo(() => {
     const { yearOffsetCol, yearOffsetRow, cellSize, bgCols, bgRows } = gridLayout
+
+    // Pre-compute weeks layout values (used for every day in weeks mode)
+    const numWeeks  = Math.ceil((days.length + janFirstMon) / 7)
+    const wkRows    = Math.ceil(numWeeks / WK_NUM_PANELS)
+    const wkStartC  = Math.max(0, Math.floor((bgCols - WK_CONTENT_W) / 2))
+    const wkStartR  = Math.floor((bgRows - wkRows) / 2)
+    const wkStride  = WK_PANEL_W + WK_PANEL_GAP  // cols between panel origins (16)
+
     return days.map(day => {
       if (viewMode === 'months') {
         // Snap to grid: 12 month rows, each separated by 1 gap row (23 rows total)
@@ -125,14 +144,26 @@ export default function App() {
           y: (startRow + day.date.getMonth() * 2) * cellSize,
         }
       }
-      // year / weeks / custom: use year layout positions
+      if (viewMode === 'weeks') {
+        const wk      = Math.floor((day.dayIndex + janFirstMon) / 7)
+        const pCol    = Math.floor(wk / wkRows)
+        const pRow    = wk % wkRows
+        const dow     = day.date.getDay()  // 0=Sun … 6=Sat
+        // Mon–Fri → cols 0–4 ; gap at col 5 ; Sat → col 6 ; Sun → col 7
+        const localC  = dow === 0 ? 7 : dow === 6 ? 6 : dow - 1
+        return {
+          x: (wkStartC + pCol * wkStride + WK_LABEL_COLS + localC) * cellSize,
+          y: (wkStartR + pRow) * cellSize,
+        }
+      }
+      // year / custom: use year layout positions
       const cell = layout.cells[day.dayIndex]
       return {
         x: (yearOffsetCol + cell.col) * cellSize,
         y: (yearOffsetRow + cell.row) * cellSize,
       }
     })
-  }, [viewMode, days, layout, gridLayout])
+  }, [viewMode, days, layout, gridLayout, janFirstMon])
 
   // ── Month label positions ─────────────────────────────────────────────
   const monthLabelPositions = useMemo<MonthLabelPos[]>(() => {
@@ -145,6 +176,21 @@ export default function App() {
       y: (startRow + month * 2) * cellSize + pixelSize / 2,  // vertically centered on pixel row
     }))
   }, [gridLayout])
+
+  // ── Week label positions ──────────────────────────────────────────────
+  const weekLabelPositions = useMemo<WeekLabelPos[]>(() => {
+    const { cellSize, bgCols, bgRows, pixelSize } = gridLayout
+    const numWeeks = Math.ceil((layout.totalDays + janFirstMon) / 7)
+    const wkRows   = Math.ceil(numWeeks / WK_NUM_PANELS)
+    const startC   = Math.max(0, Math.floor((bgCols - WK_CONTENT_W) / 2))
+    const startR   = Math.floor((bgRows - wkRows) / 2)
+    const stride   = WK_PANEL_W + WK_PANEL_GAP
+    return Array.from({ length: numWeeks }, (_, w) => ({
+      week: w,
+      x: (startC + Math.floor(w / wkRows) * stride + WK_LABEL_COLS - 1) * cellSize,  // 1-cell gap before pixels
+      y: (startR + (w % wkRows)) * cellSize + pixelSize / 2,
+    }))
+  }, [gridLayout, layout.totalDays, janFirstMon])
 
   // ── Per-pixel opacity override for fade transition ───────────────────
   const pixelOverrides = useMemo(() => {
@@ -159,6 +205,8 @@ export default function App() {
   }, [fadeTransition, days])
 
   const todayMonth = new Date().getMonth()
+  const todayIdx   = days.find(d => d.state === 'today')?.dayIndex ?? -1
+  const todayWeek  = todayIdx >= 0 ? Math.floor((todayIdx + janFirstMon) / 7) : -1
 
   // ── Scatter transition ────────────────────────────────────────────────
   // During fade-out keep old positions; during fade-in (or scatter/direct) use new positions
@@ -296,10 +344,12 @@ export default function App() {
             viewMode={viewMode}
             pixelPositions={displayPositions}
             monthLabelPositions={monthLabelPositions}
+            weekLabelPositions={weekLabelPositions}
             staggerDelay={staggerDelay}
             moveDuration={moveDuration}
             pixelOverrides={pixelOverrides}
             todayMonth={todayMonth}
+            todayWeek={todayWeek}
           />
         </motion.div>
 
