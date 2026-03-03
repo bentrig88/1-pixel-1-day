@@ -25,10 +25,10 @@ const FRAG = `
 
 interface Props {
   opacity?: number  // default 0.04
-  fps?: number      // grain refresh rate, default 24 (film-like)
+  fps?: number      // grain refresh rate, default 12 (film-like)
 }
 
-export function NoiseOverlay({ opacity = 0.04, fps = 12 }: Props) {
+export function NoiseOverlay({ opacity = 0.04, fps = 8 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {

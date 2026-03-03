@@ -3,9 +3,9 @@
 
 ## Project Overview
 A React + TypeScript + Vite + Framer Motion app where each pixel = one day of the year.
-- **Past days**: gray (`#b0b0b0`)
-- **Today**: red (`#cc2200`)
-- **Future days**: dark (`#2a2a2a`)
+- **Past days**: gray
+- **Today**: red (accent color)
+- **Future days**: dark
 
 The year "2026" is rendered as pixel art where each filled square = one day, totalling exactly 365 squares.
 
@@ -13,7 +13,9 @@ The year "2026" is rendered as pixel art where each filled square = one day, tot
 
 ## Tech Stack
 - React + TypeScript + Vite
-- Framer Motion (animations, zoom)
+- Framer Motion (animations, zoom, transitions)
+- Firebase Auth (Google Sign-In) + Firestore (reminder + layout persistence)
+- WebGL (animated noise overlay)
 - CSS Modules
 - No external UI libraries
 
@@ -23,67 +25,238 @@ The year "2026" is rendered as pixel art where each filled square = one day, tot
 ```
 src/
   data/
-    pixelFont.ts       — digit bitmaps (0-9), DIGIT_WIDTH=11, DIGIT_HEIGHT=17, countFilledCells()
-    yearLayout.ts      — buildYearLayout(), findBestHeight(), scaleBitmap(), getDayOfYear()
+    pixelFont.ts       — digit bitmaps (0-9), DIGIT_WIDTH=11, DIGIT_HEIGHT=17
+    yearLayout.ts      — buildYearLayout(), findBestHeight(), scaleBitmap()
+    themes.ts          — THEMES[], DEFAULT_THEME_ID, applyTheme()
+    fonts.ts           — FONTS[], DEFAULT_FONT_ID, applyFont()
   hooks/
     useYear.ts         — returns { layout, days, todayDayIndex, daysLeft }
+  lib/
+    firebase.ts        — Firebase app init (paste config here), exports auth/db/provider
+    auth.ts            — signInWithGoogle(), signOut()
+    db.ts              — Firestore + localStorage helpers for reminders and custom layouts
   components/
     YearView/
-      YearView.tsx     — renders bgRows × bgCols CSS grid; exports GridLayout interface
+      YearView.tsx     — renders bgRows × bgCols CSS grid + month/week labels + pixels
       YearView.module.css
     Pixel/
-      Pixel.tsx        — single day square, motion.div with whileHover scale, isSelected/isDimmed props
-      Pixel.module.css — .past / .today / .future / .hasReminder
+      Pixel.tsx        — single day square; supports isSelected, isDimmed, isEditMode, isDragging
+      Pixel.module.css
     DayDetail/
-      DayDetail.tsx    — day detail UI (date, textarea, save button), fades in over zoomed pixel
-      DayDetail.module.css — color schemes per day state (past/today/future)
+      DayDetail.tsx    — day detail panel (date, textarea, save); auto-saves on navigation
+      DayDetail.module.css
     TopBar/
-      TopBar.tsx       — shows today's date + days remaining
-  App.tsx              — camera zoom logic, state management, keyboard navigation, resize listener
+      TopBar.tsx       — today's date, days remaining, Google sign-in/out button + avatar
+      TopBar.module.css
+    BottomBar/
+      BottomBar.tsx    — view mode dropdown, theme dropdown, font dropdown, branding
+      BottomBar.module.css
+    SavePopup/
+      SavePopup.tsx    — modal for naming a custom layout before saving
+      SavePopup.module.css
+    NoiseOverlay/
+      NoiseOverlay.tsx — animated WebGL grain overlay (24fps, soft-light blend)
+    Fireworks/
+      Fireworks.tsx    — canvas particle system; shown when zooming Dec 31
+  App.tsx              — all state, zoom, transitions, drag-and-drop, auth sync
   App.module.css
-  index.css            — CSS variables, global styles
+  index.css            — CSS theme variables (:root defaults) + legacy --color-* aliases
 ```
+
+---
+
+## Theme System (src/data/themes.ts)
+
+All colors are CSS custom properties set on `:root` via `applyTheme()`. **To add a new theme**, add an entry to `THEMES` in `themes.ts` — it automatically appears in the dropdown.
+
+### Variable reference
+```css
+--theme-bg                  /* app background */
+--theme-grid-cell           /* background grid cells */
+--theme-pixel-past          /* past day pixels */
+--theme-pixel-today         /* today's pixel + accent color */
+--theme-pixel-future        /* future day pixels */
+--theme-pixel-past-hover    /* edit-mode hover on past pixels */
+--theme-pixel-today-hover   /* edit-mode hover on today pixel */
+--theme-pixel-future-hover  /* edit-mode hover on future pixels */
+--theme-bar-bg              /* top/bottom bar background */
+--theme-bar-text            /* bar primary text */
+--theme-bar-muted           /* bar secondary/muted text */
+--theme-surface             /* dropdowns, label backgrounds */
+--theme-surface-hover       /* hover state on surface items */
+--theme-surface-text        /* text on surface */
+--theme-panel-bg            /* dark overlay panels (SavePopup, edit buttons) */
+--theme-panel-text          /* text on panels */
+--theme-label-idle          /* month/week labels (non-current period) */
+--theme-divider             /* separator lines */
+```
+
+Legacy aliases (`--color-*`) in `index.css` point to `--theme-*` so older CSS still works.
+
+Theme + font selections are persisted to localStorage (`1p1d-theme`, `1p1d-font`).
+
+---
+
+## Font System (src/data/fonts.ts)
+
+Fonts control `--font-mono` CSS variable. **To add a new font**:
+1. Add a `<link>` in `index.html` (Google Fonts or self-hosted)
+2. Add an entry to `FONTS` in `fonts.ts`
+
+Each font option in the dropdown renders in its own typeface via inline `fontFamily` style.
+
+Current fonts: Pixelify Sans, Bytesized, Jersey 10, Jacquard 24 (all Google Fonts).
+
+---
+
+## Firebase Auth + Firestore (src/lib/)
+
+### Auth flow
+- **Guest** (signed out): reminders + custom layouts saved to localStorage
+- **Sign in**: data migrates from localStorage to Firestore if cloud is empty; otherwise cloud wins on conflict; localStorage cleared after sync
+- **Sign out**: falls back to localStorage
+
+### Firestore structure
+```
+/users/{uid}/years/{year}         →  { reminders: { "42": "text", … } }
+/users/{uid}/app/customLayouts    →  { layouts: CustomLayout[] }
+```
+
+### Persistence helpers (src/lib/db.ts)
+- `loadRemindersFromFirestore` / `saveReminderToFirestore` / `migrateToFirestore`
+- `loadCustomLayoutsFromFirestore` / `saveCustomLayoutsToFirestore`
+- `loadRemindersFromLocalStorage` / `saveReminderToLocalStorage` / `clearLocalStorageReminders`
+- `loadCustomLayoutsFromLocalStorage` / `saveCustomLayoutsToLocalStorage` / `clearLocalStorageCustomLayouts`
+
+localStorage keys: `1p1d-reminders-{year}`, `1p1d-custom-layouts`
+
+### Firestore security rules
+```
+match /users/{userId}/{document=**} {
+  allow read, write: if request.auth != null && request.auth.uid == userId;
+}
+```
+
+### Environment variables
+Firebase config is stored in `.env.local` (never committed — covered by `*.local` in `.gitignore`):
+```
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+```
+Firebase API keys are **public by design** — security is enforced by Firestore Rules. The key in use must be the one Firebase auto-generated for the project (visible in Firebase Console → Project Settings → General → Web API Key). A manually created GCP key will cause `auth/configuration-not-found`.
+
+### Firebase Console setup checklist
+- Authentication → Sign-in method → Google: **enabled**
+- Authentication → Settings → Authorized domains: add `localhost` + production domain
+- GCP Console → Credentials → the Firebase web key: add HTTP referrer restrictions (`localhost/*`, `pixel-1-day.firebaseapp.com/*`, production domain)
+
+---
+
+## View Modes (BottomBar + App.tsx)
+
+Four modes in the bottom bar dropdown:
+
+| Mode | Layout |
+|---|---|
+| `year` | Default pixel-art year layout |
+| `months` | 12 rows, one per month, days as columns |
+| `weeks` | 3-panel column-major layout, one row per week |
+| `custom` | User-defined drag-and-drop layout; saved to Firestore/localStorage |
+
+### Custom view mode
+- Selecting "New Custom" from dropdown enters edit mode: pixels scale to 0.8×, show a diagonal hatch pattern, and become draggable
+- Drag a pixel → it scales to 1.5×, drops a shadow, snaps to grid cells
+- Click **Save** → `SavePopup` modal asks for a name → layout stored under `customLayouts`
+- Saved layouts appear in the dropdown below a divider
+- Selecting a saved layout shows **Edit** / **Delete** floating controls
+- `editPositions` (col/row per dayIndex) takes priority over saved positions during editing
+
+---
+
+## Custom Layout State (App.tsx)
+
+```ts
+interface CustomLayout {
+  id: string                              // crypto.randomUUID()
+  name: string
+  positions: { col: number; row: number }[]  // one per dayIndex, resolution-independent
+}
+
+const [customLayouts, setCustomLayouts]     // persisted via persistLayouts()
+const [activeCustomId, setActiveCustomId]   // null = no saved layout active
+const [isEditingCustom, setIsEditingCustom]
+const [editPositions, setEditPositions]     // null = use saved positions
+const [draggingDayIndex, setDraggingDayIndex]
+const [showSavePopup, setShowSavePopup]
+```
+
+`persistLayouts(layouts)` saves to Firestore (signed in) or localStorage (guest).
+
+---
+
+## Noise Overlay (src/components/NoiseOverlay/NoiseOverlay.tsx)
+
+WebGL fragment shader generates per-pixel hash noise, seeded by a frame counter. Runs at 24fps (film grain aesthetic). Essentially zero CPU cost after init — all GPU.
+
+```tsx
+<NoiseOverlay opacity={0.2} fps={12} />
+```
+
+Props: `opacity` (0–1), `fps` (default 24). Uses `mix-blend-mode: soft-light`.
+
+---
+
+## Fireworks (src/components/Fireworks/Fireworks.tsx)
+
+Canvas particle system shown when the selected day is **December 31**. Spawns pixel-art bursts (4–8px square particles) every 700–1200ms at random screen positions. Particles use gray tones matching `--theme-pixel-past` with gravity + air friction physics.
+
+Rendered inside `<AnimatePresence>` in `App.tsx`:
+```tsx
+{isDec31 && <Fireworks />}
+```
+
+`isDec31` is true when `selectedDay?.getMonth() === 11 && selectedDay?.getDate() === 31`.
 
 ---
 
 ## Key Algorithms
 
 ### `findBestHeight` (yearLayout.ts)
-Iterates heights 7–60, scales all 4 digit bitmaps via nearest-neighbor, counts total filled cells, picks the height with minimum `|total - daysInYear|`. This automatically ensures total = 365 (or 366 for leap years). New font bitmaps don't need to hit 365 manually — the scaler handles it.
-
-### `scaleBitmap` (yearLayout.ts)
-Nearest-neighbor vertical scaling: `srcRow = floor((row / targetHeight) * srcHeight)`.
+Iterates heights 7–60, scales all 4 digit bitmaps via nearest-neighbor, counts total filled cells, picks the height with minimum `|total - daysInYear|`.
 
 ### Camera Zoom (App.tsx)
 ```ts
-const ZOOM = DETAIL_SIZE / pixelSize   // dynamic: zoomed pixel === DayDetail size
+const ZOOM = DETAIL_SIZE / pixelSize   // dynamic
 zoomX = ZOOM * (viewW / 2 - pixelCenterX)
 zoomY = ZOOM * (viewH / 2 - pixelCenterY)
 ```
-Applied via `<motion.div animate={{ x: zoomX, y: zoomY, scale: ZOOM }}>`.
-The entire grid zooms and pans so the selected pixel is centered. DayDetail fades in on top.
+
+### Pixel Size Formula
+```ts
+const pixelSize = Math.max(1, Math.floor(
+  Math.min(
+    viewW / ((layout.gridCols + MIN_SIDE_COLS * 2) * 1.15),
+    viewH / (layout.gridRows * 1.15),
+  ) * GRID_SCALE  // 0.8
+))
+```
 
 ---
 
 ## Layout Constants
 ```ts
-const DIGIT_GAP = 1        // empty columns between digits
-const PADDING_ROWS = 4     // empty rows above and below year number
-const DETAIL_SIZE = 400    // px — DayDetail square size; ZOOM is derived from this
-// TOP_BAR_H is dynamic = 2 × cellSize (computed via two-pass in App.tsx)
-const MIN_SIDE_COLS = 4    // empty columns guaranteed on each side of the year grid
-const ZOOM_DURATION = 0.55 // grid zoom is 0.7s; DayDetail starts fading in 150ms early
-```
-
----
-
-## CSS Variables (index.css)
-```css
---color-bg: #e8e8e8
---color-pixel-past: #b0b0b0
---color-pixel-today: #cc2200
---color-pixel-future: #2a2a2a
---font-mono: monospace
+const DETAIL_SIZE    = 400   // px — DayDetail square size; ZOOM derived from this
+const MIN_SIDE_COLS  = 4     // empty cols on each side of the year
+const GRID_SCALE     = 0.8   // grid rendered at 80% of max size
+const WK_LABEL_COLS  = 6     // cols for "Week NN" label
+const WK_DAY_COLS    = 8     // 5 weekday + 1 gap + 2 weekend
+const WK_NUM_PANELS  = 3
+const WK_PANEL_GAP   = 2
+// TOP_BAR_H is dynamic = 2 × rawCellSize
 ```
 
 ---
@@ -118,28 +291,14 @@ interface GridLayout {
 
 ---
 
-## Pixel Size Formula (App.tsx)
-```ts
-const pixelSize = Math.max(1, Math.floor(
-  Math.min(
-    viewW / ((layout.gridCols + MIN_SIDE_COLS * 2) * 1.15),
-    viewH / (layout.gridRows * 1.15),
-  )
-))
-```
-The `1.15` factor accounts for the gap (`cellSize ≈ pixelSize × 1.15`). `MIN_SIDE_COLS * 2` guarantees padding on both sides so the year is never cropped.
+## Transition System (App.tsx)
 
----
+Three types picked randomly on view mode change (never same type twice in a row):
+- **Type 0 — Direct stagger**: pixels animate sequentially to new positions
+- **Type 1 — Scatter**: pixels fly to random positions, then to final positions
+- **Type 2 — Fade**: pixels fade out in random order, snap, fade in at new positions
 
-## Responsive Viewport (App.tsx)
-```ts
-const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight })
-useEffect(() => {
-  function onResize() { setViewport({ w: window.innerWidth, h: window.innerHeight }) }
-  window.addEventListener('resize', onResize)
-  return () => window.removeEventListener('resize', onResize)
-}, [])
-```
+Custom view mode bypasses transitions — pixels stay in place, only scale/shadow animates on edit mode enter.
 
 ---
 
@@ -150,169 +309,22 @@ useEffect(() => {
 ---
 
 ## Auto-save Logic (DayDetail.tsx)
-Uses `prevDayRef`, `textRef`, `onSaveRef` refs + `useEffect([day])` to save reminder text automatically when navigating to a different day or closing.
+Uses `prevDayRef`, `textRef`, `onSaveRef` refs + `useEffect([day])` to save automatically when navigating to a different day or closing.
 
 ---
 
-## Animation Design
+## Deployment (IONOS shared hosting)
 
-### Grid zoom
-```ts
-transition={{ type: 'tween', duration: 0.7, ease: [0.65, 0, 0.35, 1] }}
-```
-Cubic ease-in-out, no bounce/spring.
-
-### DayDetail fade-in/out
-- Uses `AnimatePresence mode="wait"` + `key={day.dayIndex}` to remount on day change.
-- **Enter**: opacity 0 → 1, delay `ZOOM_DURATION` (0.55s), duration 0.5s.
-- **Exit**: opacity instantly to 0 (`duration: 0`).
-- This means: DayDetail disappears instantly when closing or navigating, and fades in only after zoom settles.
-
-### Pixel opacity
-- Non-selected pixels animate to `opacity: 0.15` when any day is selected (`isDimmed` prop).
-- Selected pixel stays at full opacity throughout — provides visual continuity as DayDetail fades in on top.
-
-### Hover scale
-- `whileHover` is always provided (never `undefined`) with `scale: isSelected || isDimmed ? 1 : 1.3`.
-- This ensures Framer Motion actively resets scale to 1 when a pixel becomes selected or dimmed, preventing a stuck-scale bug.
-
----
-
-## DayDetail Color Theming (DayDetail.module.css)
-DayDetail background matches the selected pixel color. Text, border, and button colors adapt per state:
-- `.past`: gray background, dark text, dark save button
-- `.today`: red background, white text, white save button
-- `.future`: dark background, white text, white save button
-
----
-
-## Font Design (pixelFont.ts)
-Bitmaps are 11×17 (DIGIT_WIDTH=11, DIGIT_HEIGHT=17), LCD/7-segment style with 2px thick strokes.
-The four digits of "2026" have exactly 86+96+86+97 = 365 filled cells, so `findBestHeight` picks h=17 with diff=0 and no scaling is needed.
-
----
-
-## DayDetail Overlay Placement (App.tsx / App.module.css)
-The overlay is `position: absolute; inset: 0` inside `<main>`, **not** `position: fixed`. This ensures it shares the same coordinate space as the grid, so the DayDetail is centered at exactly the same point as the zoomed pixel.
-
----
-
-## View Modes (BottomBar + App.tsx)
-
-Four modes selectable from the bottom bar dropdown:
-- `year` — default pixel-art year layout
-- `months` — 12 rows, one per month, days as columns; month name labels on the left
-- `weeks` — 3-panel column-major layout, one row per week; week labels on the left
-- `custom` — reserved for future use (currently falls through to year layout)
-
-Camera zoom works correctly in all modes — `pixelPositions[selectedDayIndex]` is always used (not `layout.cells`).
-
----
-
-## Month View Layout (App.tsx)
-
-```ts
-const MONTH_LABEL_COLS = 8   // cell-widths reserved for month name label
-// 12 months × 2 rows each (1 pixel row + 1 gap row) = 23 total rows
-const startCol = Math.floor((bgCols - (MONTH_LABEL_COLS + 31)) / 2)
-const startRow = Math.floor((bgRows - 23) / 2)
-x = (startCol + MONTH_LABEL_COLS + day.date.getDate() - 1) * cellSize
-y = (startRow + day.date.getMonth() * 2) * cellSize
-```
-
-All coordinates are integer multiples of `cellSize` to stay grid-aligned.
-Month labels: right-aligned (`transform: translate(-100%, -50%)`), white background with horizontal padding, current month highlighted in red. Label x = `(startCol + MONTH_LABEL_COLS - 1) * cellSize` — 1-cell gap between white box and the day pixels.
-
----
-
-## Weeks View Layout (App.tsx)
-
-```ts
-const WK_LABEL_COLS = 6   // cols for "Week NN" label per panel
-const WK_DAY_COLS   = 8   // 5 weekday + 1 gap col + 2 weekend (Sat/Sun)
-const WK_NUM_PANELS = 3   // panels side by side
-const WK_PANEL_GAP  = 2   // empty cols between panels
-const WK_PANEL_W    = WK_LABEL_COLS + WK_DAY_COLS   // 14
-const WK_CONTENT_W  = WK_NUM_PANELS * WK_PANEL_W + (WK_NUM_PANELS - 1) * WK_PANEL_GAP  // 46
-```
-
-**Day-of-week column mapping** (Mon–Fri left, gap, Sat–Sun right):
-```ts
-const localC = dow === 0 ? 7 : dow === 6 ? 6 : dow - 1
-// Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, (gap=5), Sat=6, Sun=7
-```
-
-**Jan 1 offset** — weeks must account for the weekday Jan 1 falls on:
-```ts
-const janFirstMon = (days[0].date.getDay() + 6) % 7  // Mon=0 … Sun=6
-const wk = Math.floor((day.dayIndex + janFirstMon) / 7)
-```
-This leaves Mon/Tue/Wed slots empty in week 0 if Jan 1 is a Thursday (as in 2026), rather than wrapping later days back to fill them.
-
-**Column-major ordering** — weeks fill top-to-bottom within each panel, then move to the next panel:
-```ts
-const pCol = Math.floor(wk / wkRows)
-const pRow = wk % wkRows
-```
-
-Week labels: same style as month labels, current week in red, positioned at `(startC + pCol * stride + WK_LABEL_COLS - 1) * cellSize`.
-
----
-
-## Transition System (App.tsx)
-
-Three transition types, randomly selected on every view mode change. The same type is never picked twice in a row (`lastTransitionRef`).
-
-```ts
-const choices = [0, 1, 2].filter(t => t !== lastTransitionRef.current)
-const type = choices[Math.floor(Math.random() * choices.length)]
-```
-
-### Type 0 — Direct stagger
-Pixels animate sequentially to their new positions over ~1.5s total.
-```ts
-staggerDelay = 1.0 / (totalDays - 1)   // only active on the render where mode changes
-moveDuration = 0.5
-```
-
-### Type 1 — Scatter
-1. Pixels fly to random grid positions (`moveDuration = 0.5`, 700ms)
-2. Pause briefly
-3. Animate to final positions (`moveDuration = 0.5`, 600ms)
-```ts
-setScatterPositions(randomPos)
-// 700ms later:
-setScatterPositions(null)
-// 600ms later:
-setMoveDuration(0)
-```
-
-### Type 2 — Fade
-1. Pixels fade out in random order (positions held at old values via `fadeTransition.oldPositions`)
-2. Positions snap instantly
-3. Pixels fade in at new positions in random order
-```ts
-type FadeTransition = {
-  phase: 'out' | 'in'
-  rankOut: number[]      // fade-out order per pixel
-  rankIn: number[]       // fade-in order per pixel
-  oldPositions: { x: number; y: number }[]
-}
-```
-`displayPositions` during fade-out = `fadeTransition.oldPositions` (pixels stay put while invisible).
-
-### Resize safety
-`moveDuration` is React state, defaulting to `0`. It is only elevated to `0.5` during intentional transitions and reset to `0` after completion. This ensures viewport resizes always snap pixels instantly with no animation lag.
+- Build: `npm run build` → uploads the **contents** of `dist/` (not the folder itself)
+- Server: IONOS shared hosting (Apache, but `.htaccess` AllowOverride may be restricted)
+- Hosting approach: subdomain `1p1d.benjamintrigalou.com` pointing to the upload folder
+  - With subdomain as document root: no `base` needed in `vite.config.ts`
+  - With subfolder (e.g. `/1p1d/`): set `base: '/1p1d/'` in `vite.config.ts`
+- Since the app has **no client-side routes**, `.htaccess` rewrites are not needed for functionality — only for making the bare directory URL work without `/index.html`
+- After deploying, add the production domain to Firebase Auth → Authorized domains
 
 ---
 
 ## Pending Improvements
 
-### 1. DayDetail AS the Pixel (Pixel.tsx + DayDetail.tsx)
-Currently `DayDetail` is a separate fixed-position panel rendered in `App.tsx`.
-**Required**: the zoomed-in pixel itself should expand to show the day detail content — not a new overlay on top. The pixel IS the detail view.
-- Options: pass `isSelected` to `Pixel.tsx` + render detail content inline, or use Framer Motion `layoutId` to animate from pixel → expanded card
-- Remove the separate `<DayDetail>` panel from `App.tsx`
-
-### 2. Custom View
-The `custom` view mode is selectable but currently falls back to the year layout. Behaviour TBD.
+*(No open items — all previously listed improvements are complete.)*

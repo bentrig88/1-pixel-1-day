@@ -54,7 +54,7 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
                      'July', 'August', 'September', 'October', 'November', 'December']
 
 export function YearView({
-  layout, gridLayout, days, onDayClick, selectedDayIndex,
+  gridLayout, days, onDayClick, selectedDayIndex,
   viewMode, pixelPositions, monthLabelPositions, weekLabelPositions,
   staggerDelay, moveDuration, pixelOverrides, todayMonth, todayWeek,
   isEditMode, editEnterStagger = 0, draggingDayIndex, onPixelDragStart,

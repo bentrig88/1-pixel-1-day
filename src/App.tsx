@@ -359,7 +359,7 @@ export default function App() {
       setEditPositions(prev => {
         if (!prev) return prev
         const next = [...prev]
-        next[draggingDayIndex] = { col, row }
+        next[draggingDayIndex!] = { col, row }
         return next
       })
     }
