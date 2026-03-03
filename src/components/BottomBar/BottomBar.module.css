@@ -30,7 +30,7 @@
 .sizer {
   height: 0;
   overflow: hidden;
-  padding: 0 16px;
+  padding: 0 28px;
   white-space: nowrap;
   pointer-events: none;
   visibility: hidden;
@@ -48,7 +48,7 @@
   font-size: inherit;
   letter-spacing: 0.03em;
   cursor: pointer;
-  padding: 4px 16px;
+  padding: 4px 28px 4px 16px;
   box-sizing: border-box;
 }
 
