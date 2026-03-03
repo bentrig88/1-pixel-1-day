@@ -116,7 +116,7 @@ export default function App() {
     const startRow = Math.floor((bgRows - 23) / 2)
     return Array.from({ length: 12 }, (_, month) => ({
       month,
-      x: (startCol + MONTH_LABEL_COLS) * cellSize,       // right edge of label area
+      x: (startCol + MONTH_LABEL_COLS - 1) * cellSize,   // right edge: 1 square gap before pixels
       y: (startRow + month * 2) * cellSize + pixelSize / 2,  // vertically centered on pixel row
     }))
   }, [gridLayout])

@@ -85,7 +85,7 @@ export function YearView({
                   top: y,
                   transform: 'translate(-100%, -50%)',
                   fontFamily: 'var(--font-mono)',
-                  fontSize: Math.max(10, pixelSize * 1.3),
+                  fontSize: Math.max(8, pixelSize * 0.8),
                   whiteSpace: 'nowrap',
                   color: month === todayMonth
                     ? 'var(--color-pixel-today)'
