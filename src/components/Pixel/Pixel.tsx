@@ -71,8 +71,8 @@ export function Pixel({ day, size, x, y, delay, scaleDelay, moveDuration, opacit
           e.currentTarget.setPointerCapture(e.pointerId)
           onDragStart(day.dayIndex)
         }}
-        onMouseEnter={e => { if (!isEditMode) setTooltipPos({ x: e.clientX, y: e.clientY }) }}
-        onMouseMove={e => { if (!isEditMode) setTooltipPos({ x: e.clientX, y: e.clientY }) }}
+        onMouseEnter={e => setTooltipPos({ x: e.clientX, y: e.clientY })}
+        onMouseMove={e => setTooltipPos({ x: e.clientX, y: e.clientY })}
         onMouseLeave={() => setTooltipPos(null)}
         whileHover={isEditMode ? undefined : {
           scale: isSelected || isDimmed ? 1 : 1.3,
@@ -90,7 +90,7 @@ export function Pixel({ day, size, x, y, delay, scaleDelay, moveDuration, opacit
               : { type: 'tween', duration: 0.5, ease: [0.65, 0, 0.35, 1] },
         }}
       />
-      {tooltipPos && !isSelected && !isEditMode && createPortal(
+      {tooltipPos && !isSelected && !isDragging && createPortal(
         <div
           className={styles.tooltip}
           style={{ left: tooltipPos.x, top: tooltipPos.y - 24 }}
