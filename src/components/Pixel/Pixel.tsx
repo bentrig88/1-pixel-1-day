@@ -31,11 +31,11 @@ export function Pixel({ day, size, x, y, delay, scaleDelay, moveDuration, opacit
 
   const dateLabel = `${WEEKDAYS[day.date.getDay()]} ${day.date.getDate()} ${MONTHS[day.date.getMonth()]} ${day.date.getFullYear()}`
 
-  const editScale  = isDragging ? 1.5 : 1
+  const editScale  = isDragging ? 1.5 : isEditMode ? 0.8 : 1
   const editFilter = isDragging
-    ? 'drop-shadow(0px 10px 28px rgba(0,0,0,0.22))'
+    ? 'drop-shadow(0px 8px 20px rgba(0,0,0,0.22))'
     : isEditMode
-      ? 'drop-shadow(0px 4px 14px rgba(0,0,0,0.45))'
+      ? 'drop-shadow(0px 2px 5px rgba(0,0,0,0.3))'
       : 'drop-shadow(0px 0px 0px rgba(0,0,0,0))'
 
   return (

@@ -19,6 +19,22 @@
   outline: none;
 }
 
+/* Diagonal hatching overlay */
+.editMode::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.2) 0px,
+    rgba(0, 0, 0, 0.2) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  background-size: 4px 4px;
+  pointer-events: none;
+}
+
 .editMode.past:hover    { background: #c8c8c8; }
 .editMode.today:hover   { background: #e03818; }
 .editMode.future:hover  { background: #484848; }
@@ -26,6 +42,10 @@
 .dragging {
   cursor: grabbing;
   z-index: 10;
+}
+
+.dragging::before {
+  display: none;
 }
 
 .past {
