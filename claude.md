@@ -194,3 +194,125 @@ The four digits of "2026" have exactly 86+96+86+97 = 365 filled cells, so `findB
 
 ## DayDetail Overlay Placement (App.tsx / App.module.css)
 The overlay is `position: absolute; inset: 0` inside `<main>`, **not** `position: fixed`. This ensures it shares the same coordinate space as the grid, so the DayDetail is centered at exactly the same point as the zoomed pixel.
+
+---
+
+## View Modes (BottomBar + App.tsx)
+
+Four modes selectable from the bottom bar dropdown:
+- `year` — default pixel-art year layout
+- `months` — 12 rows, one per month, days as columns; month name labels on the left
+- `weeks` — 3-panel column-major layout, one row per week; week labels on the left
+- `custom` — reserved for future use (currently falls through to year layout)
+
+Camera zoom works correctly in all modes — `pixelPositions[selectedDayIndex]` is always used (not `layout.cells`).
+
+---
+
+## Month View Layout (App.tsx)
+
+```ts
+const MONTH_LABEL_COLS = 8   // cell-widths reserved for month name label
+// 12 months × 2 rows each (1 pixel row + 1 gap row) = 23 total rows
+const startCol = Math.floor((bgCols - (MONTH_LABEL_COLS + 31)) / 2)
+const startRow = Math.floor((bgRows - 23) / 2)
+x = (startCol + MONTH_LABEL_COLS + day.date.getDate() - 1) * cellSize
+y = (startRow + day.date.getMonth() * 2) * cellSize
+```
+
+All coordinates are integer multiples of `cellSize` to stay grid-aligned.
+Month labels: right-aligned (`transform: translate(-100%, -50%)`), white background with horizontal padding, current month highlighted in red. Label x = `(startCol + MONTH_LABEL_COLS - 1) * cellSize` — 1-cell gap between white box and the day pixels.
+
+---
+
+## Weeks View Layout (App.tsx)
+
+```ts
+const WK_LABEL_COLS = 6   // cols for "Week NN" label per panel
+const WK_DAY_COLS   = 8   // 5 weekday + 1 gap col + 2 weekend (Sat/Sun)
+const WK_NUM_PANELS = 3   // panels side by side
+const WK_PANEL_GAP  = 2   // empty cols between panels
+const WK_PANEL_W    = WK_LABEL_COLS + WK_DAY_COLS   // 14
+const WK_CONTENT_W  = WK_NUM_PANELS * WK_PANEL_W + (WK_NUM_PANELS - 1) * WK_PANEL_GAP  // 46
+```
+
+**Day-of-week column mapping** (Mon–Fri left, gap, Sat–Sun right):
+```ts
+const localC = dow === 0 ? 7 : dow === 6 ? 6 : dow - 1
+// Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, (gap=5), Sat=6, Sun=7
+```
+
+**Jan 1 offset** — weeks must account for the weekday Jan 1 falls on:
+```ts
+const janFirstMon = (days[0].date.getDay() + 6) % 7  // Mon=0 … Sun=6
+const wk = Math.floor((day.dayIndex + janFirstMon) / 7)
+```
+This leaves Mon/Tue/Wed slots empty in week 0 if Jan 1 is a Thursday (as in 2026), rather than wrapping later days back to fill them.
+
+**Column-major ordering** — weeks fill top-to-bottom within each panel, then move to the next panel:
+```ts
+const pCol = Math.floor(wk / wkRows)
+const pRow = wk % wkRows
+```
+
+Week labels: same style as month labels, current week in red, positioned at `(startC + pCol * stride + WK_LABEL_COLS - 1) * cellSize`.
+
+---
+
+## Transition System (App.tsx)
+
+Three transition types, randomly selected on every view mode change. The same type is never picked twice in a row (`lastTransitionRef`).
+
+```ts
+const choices = [0, 1, 2].filter(t => t !== lastTransitionRef.current)
+const type = choices[Math.floor(Math.random() * choices.length)]
+```
+
+### Type 0 — Direct stagger
+Pixels animate sequentially to their new positions over ~1.5s total.
+```ts
+staggerDelay = 1.0 / (totalDays - 1)   // only active on the render where mode changes
+moveDuration = 0.5
+```
+
+### Type 1 — Scatter
+1. Pixels fly to random grid positions (`moveDuration = 0.5`, 700ms)
+2. Pause briefly
+3. Animate to final positions (`moveDuration = 0.5`, 600ms)
+```ts
+setScatterPositions(randomPos)
+// 700ms later:
+setScatterPositions(null)
+// 600ms later:
+setMoveDuration(0)
+```
+
+### Type 2 — Fade
+1. Pixels fade out in random order (positions held at old values via `fadeTransition.oldPositions`)
+2. Positions snap instantly
+3. Pixels fade in at new positions in random order
+```ts
+type FadeTransition = {
+  phase: 'out' | 'in'
+  rankOut: number[]      // fade-out order per pixel
+  rankIn: number[]       // fade-in order per pixel
+  oldPositions: { x: number; y: number }[]
+}
+```
+`displayPositions` during fade-out = `fadeTransition.oldPositions` (pixels stay put while invisible).
+
+### Resize safety
+`moveDuration` is React state, defaulting to `0`. It is only elevated to `0.5` during intentional transitions and reset to `0` after completion. This ensures viewport resizes always snap pixels instantly with no animation lag.
+
+---
+
+## Pending Improvements
+
+### 1. DayDetail AS the Pixel (Pixel.tsx + DayDetail.tsx)
+Currently `DayDetail` is a separate fixed-position panel rendered in `App.tsx`.
+**Required**: the zoomed-in pixel itself should expand to show the day detail content — not a new overlay on top. The pixel IS the detail view.
+- Options: pass `isSelected` to `Pixel.tsx` + render detail content inline, or use Framer Motion `layoutId` to animate from pixel → expanded card
+- Remove the separate `<DayDetail>` panel from `App.tsx`
+
+### 2. Custom View
+The `custom` view mode is selectable but currently falls back to the year layout. Behaviour TBD.
