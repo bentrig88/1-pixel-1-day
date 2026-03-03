@@ -22,7 +22,7 @@
 
 .date {
   background: white;
-  color: #1a1a1a;
+  color: var(--color-pixel-today);
   padding: 2px 10px;
 }
 

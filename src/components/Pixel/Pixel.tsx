@@ -29,6 +29,8 @@ export function Pixel({ day, size, onClick, isSelected, isDimmed }: Props) {
           styles.pixel,
           styles[day.state],
           day.hasReminder ? styles.hasReminder : '',
+          isDimmed ? styles.dimmed : '',
+          isSelected ? styles.selected : '',
         ].join(' ')}
         style={{ width: size, height: size }}
         animate={{

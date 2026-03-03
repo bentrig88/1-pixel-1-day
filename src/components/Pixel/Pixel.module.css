@@ -4,6 +4,12 @@
   flex-shrink: 0;
 }
 
+.pixel:not(.dimmed):not(.selected):hover {
+  outline: 2px solid var(--color-bg);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
 .past {
   background: var(--color-pixel-past);
 }
