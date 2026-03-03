@@ -83,7 +83,7 @@ export function YearView({
                   position: 'absolute',
                   left: x,
                   top: y,
-                  transform: 'translateY(-50%)',
+                  transform: 'translate(-100%, -50%)',
                   fontFamily: 'var(--font-mono)',
                   fontSize: Math.max(10, pixelSize * 1.3),
                   whiteSpace: 'nowrap',

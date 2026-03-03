@@ -81,18 +81,6 @@ export default function App() {
   const gridOffsetX = (viewW - gridW) / 2
   const gridOffsetY = (viewH - gridH) / 2
 
-  let zoomX = 0, zoomY = 0, zoomScale = 1
-  if (selectedDayIndex !== null) {
-    const cell = layout.cells[selectedDayIndex]
-    const bgCol = yearOffsetCol + cell.col
-    const bgRow = yearOffsetRow + cell.row
-    const pixelCenterX = gridOffsetX + bgCol * cellSize + pixelSize / 2
-    const pixelCenterY = gridOffsetY + bgRow * cellSize + pixelSize / 2
-    zoomX = ZOOM * (viewW / 2 - pixelCenterX)
-    zoomY = ZOOM * (viewH / 2 - pixelCenterY)
-    zoomScale = ZOOM
-  }
-
   // ── View mode stagger — only active on the render where mode changes ──
   const MONTH_LABEL_COLS = 8  // cell-widths reserved for month name labels
   const prevViewModeRef = useRef<ViewMode>(viewMode)
@@ -101,18 +89,15 @@ export default function App() {
 
   // ── Pixel positions per view mode ─────────────────────────────────────
   const pixelPositions = useMemo(() => {
-    const { yearOffsetCol, yearOffsetRow, cellSize, pixelSize } = gridLayout
+    const { yearOffsetCol, yearOffsetRow, cellSize, bgCols, bgRows } = gridLayout
     return days.map(day => {
       if (viewMode === 'months') {
-        const labelWidthPx = MONTH_LABEL_COLS * cellSize
-        const contentWidth = labelWidthPx + 31 * cellSize
-        const screenXStart = (viewW - contentWidth) / 2 + labelWidthPx
-        const rowHeightPx = (viewH - 2 * cellSize) / 12
-        const month = day.date.getMonth()
-        const dayOfMonth = day.date.getDate() - 1
+        // Snap to grid: 12 month rows, each separated by 1 gap row (23 rows total)
+        const startCol = Math.floor((bgCols - (MONTH_LABEL_COLS + 31)) / 2)
+        const startRow = Math.floor((bgRows - 23) / 2)
         return {
-          x: screenXStart + dayOfMonth * cellSize - gridOffsetX,
-          y: cellSize + month * rowHeightPx + (rowHeightPx - pixelSize) / 2 - gridOffsetY,
+          x: (startCol + MONTH_LABEL_COLS + day.date.getDate() - 1) * cellSize,
+          y: (startRow + day.date.getMonth() * 2) * cellSize,
         }
       }
       // year / weeks / custom: use year layout positions
@@ -122,23 +107,32 @@ export default function App() {
         y: (yearOffsetRow + cell.row) * cellSize,
       }
     })
-  }, [viewMode, days, layout, gridLayout, viewW, viewH, gridOffsetX, gridOffsetY])
+  }, [viewMode, days, layout, gridLayout])
 
   // ── Month label positions ─────────────────────────────────────────────
   const monthLabelPositions = useMemo<MonthLabelPos[]>(() => {
-    const { cellSize } = gridLayout
-    const labelWidthPx = MONTH_LABEL_COLS * cellSize
-    const contentWidth = labelWidthPx + 31 * cellSize
-    const labelScreenX = (viewW - contentWidth) / 2
-    const rowHeightPx = (viewH - 2 * cellSize) / 12
+    const { cellSize, bgCols, bgRows, pixelSize } = gridLayout
+    const startCol = Math.floor((bgCols - (MONTH_LABEL_COLS + 31)) / 2)
+    const startRow = Math.floor((bgRows - 23) / 2)
     return Array.from({ length: 12 }, (_, month) => ({
       month,
-      x: labelScreenX - gridOffsetX,
-      y: cellSize + month * rowHeightPx + rowHeightPx / 2 - gridOffsetY,
+      x: (startCol + MONTH_LABEL_COLS) * cellSize,       // right edge of label area
+      y: (startRow + month * 2) * cellSize + pixelSize / 2,  // vertically centered on pixel row
     }))
-  }, [gridLayout, viewW, viewH, gridOffsetX, gridOffsetY])
+  }, [gridLayout])
 
   const todayMonth = new Date().getMonth()
+
+  // ── Camera zoom — uses pixelPositions so it works correctly in all view modes ──
+  let zoomX = 0, zoomY = 0, zoomScale = 1
+  if (selectedDayIndex !== null) {
+    const pos = pixelPositions[selectedDayIndex]
+    const pixelCenterX = gridOffsetX + pos.x + pixelSize / 2
+    const pixelCenterY = gridOffsetY + pos.y + pixelSize / 2
+    zoomX = ZOOM * (viewW / 2 - pixelCenterX)
+    zoomY = ZOOM * (viewH / 2 - pixelCenterY)
+    zoomScale = ZOOM
+  }
 
   // ── Arrow key navigation ─────────────────────────────────────────────
   useEffect(() => {
