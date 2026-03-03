@@ -101,11 +101,11 @@ export function DayDetail({ day, onClose, onSave, width, height }: Props) {
             value={text}
             onChange={e => setText(e.target.value)}
             placeholder="Something to remember about this day..."
-            maxLength={280}
+            maxLength={144}
           />
 
           <div className={styles.footer}>
-            <span className={styles.charCount}>{text.length}/280</span>
+            <span className={styles.charCount}>{text.length}/144</span>
             <button
               className={styles.saveBtn}
               onClick={() => { handleSave(); onClose() }}

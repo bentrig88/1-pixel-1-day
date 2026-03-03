@@ -9,7 +9,6 @@ import styles from './App.module.css'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const DETAIL_SIZE = 400   // px — DayDetail is a square; zoom is derived from this
-const TOP_BAR_H = 40
 const MIN_SIDE_COLS = 4   // empty columns guaranteed on each side of the year
 
 export default function App() {
@@ -27,7 +26,6 @@ export default function App() {
   }, [])
 
   const viewW = viewport.w
-  const viewH = viewport.h - TOP_BAR_H
 
   const { layout, days, daysLeft } = useYear(CURRENT_YEAR, reminders)
 
@@ -35,8 +33,21 @@ export default function App() {
     selectedDayIndex !== null ? days[selectedDayIndex] : null
 
   // ── Grid layout computation ──────────────────────────────────────────
-  // Divide by 1.15 to account for the gap (cellSize ≈ pixelSize × 1.15),
-  // and add MIN_SIDE_COLS padding on each side so the year is never cropped.
+  // Top bar height = 2 × cellSize (dynamic). To avoid circularity, first
+  // compute a raw pixelSize using full viewport height, derive cellSize and
+  // thus topBarH, then recompute pixelSize with the actual remaining height.
+  const rawPixelSize = Math.max(1, Math.floor(
+    Math.min(
+      viewW / ((layout.gridCols + MIN_SIDE_COLS * 2) * 1.15),
+      viewport.h / (layout.gridRows * 1.15),
+    )
+  ))
+  const rawCellSize = rawPixelSize + Math.max(1, Math.floor(rawPixelSize * 0.15))
+  const TOP_BAR_H = 2 * rawCellSize
+  const topBarFontSize = Math.round(rawCellSize * 0.65)
+  const topBarAccentSize = Math.round(rawCellSize * 0.80)
+
+  const viewH = viewport.h - TOP_BAR_H
   const pixelSize = Math.max(1, Math.floor(
     Math.min(
       viewW / ((layout.gridCols + MIN_SIDE_COLS * 2) * 1.15),
@@ -115,7 +126,7 @@ export default function App() {
 
   return (
     <div className={styles.app}>
-      <TopBar today={new Date()} daysLeft={daysLeft} />
+      <TopBar today={new Date()} daysLeft={daysLeft} height={TOP_BAR_H} fontSize={topBarFontSize} accentSize={topBarAccentSize} />
 
       <main
         className={`${styles.main} ${selectedDayIndex !== null ? styles.zoomed : ''}`}

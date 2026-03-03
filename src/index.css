@@ -13,7 +13,7 @@
   --color-text: #1a1a1a;
   --color-text-muted: #888;
   --color-accent: #cc2200;
-  --font-mono: 'Courier New', Courier, monospace;
+  --font-mono: 'Pixelify Sans', monospace;
 }
 
 html, body, #root {

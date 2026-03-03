@@ -70,7 +70,7 @@ The entire grid zooms and pans so the selected pixel is centered. DayDetail fade
 const DIGIT_GAP = 1        // empty columns between digits
 const PADDING_ROWS = 4     // empty rows above and below year number
 const DETAIL_SIZE = 400    // px — DayDetail square size; ZOOM is derived from this
-const TOP_BAR_H = 40       // pixels reserved for top bar
+// TOP_BAR_H is dynamic = 2 × cellSize (computed via two-pass in App.tsx)
 const MIN_SIDE_COLS = 4    // empty columns guaranteed on each side of the year grid
 const ZOOM_DURATION = 0.55 // grid zoom is 0.7s; DayDetail starts fading in 150ms early
 ```
