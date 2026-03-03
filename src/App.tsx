@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { useYear } from './hooks/useYear'
-import { YearView, type GridLayout } from './components/YearView/YearView'
+import { YearView, type GridLayout, type MonthLabelPos } from './components/YearView/YearView'
 import { DayDetail } from './components/DayDetail/DayDetail'
 import { TopBar } from './components/TopBar/TopBar'
 import { BottomBar, type ViewMode } from './components/BottomBar/BottomBar'
@@ -93,6 +93,53 @@ export default function App() {
     zoomScale = ZOOM
   }
 
+  // ── View mode stagger — only active on the render where mode changes ──
+  const MONTH_LABEL_COLS = 8  // cell-widths reserved for month name labels
+  const prevViewModeRef = useRef<ViewMode>(viewMode)
+  const staggerDelay = prevViewModeRef.current !== viewMode ? 1.0 / (layout.totalDays - 1) : 0
+  useEffect(() => { prevViewModeRef.current = viewMode }, [viewMode])
+
+  // ── Pixel positions per view mode ─────────────────────────────────────
+  const pixelPositions = useMemo(() => {
+    const { yearOffsetCol, yearOffsetRow, cellSize, pixelSize } = gridLayout
+    return days.map(day => {
+      if (viewMode === 'months') {
+        const labelWidthPx = MONTH_LABEL_COLS * cellSize
+        const contentWidth = labelWidthPx + 31 * cellSize
+        const screenXStart = (viewW - contentWidth) / 2 + labelWidthPx
+        const rowHeightPx = (viewH - 2 * cellSize) / 12
+        const month = day.date.getMonth()
+        const dayOfMonth = day.date.getDate() - 1
+        return {
+          x: screenXStart + dayOfMonth * cellSize - gridOffsetX,
+          y: cellSize + month * rowHeightPx + (rowHeightPx - pixelSize) / 2 - gridOffsetY,
+        }
+      }
+      // year / weeks / custom: use year layout positions
+      const cell = layout.cells[day.dayIndex]
+      return {
+        x: (yearOffsetCol + cell.col) * cellSize,
+        y: (yearOffsetRow + cell.row) * cellSize,
+      }
+    })
+  }, [viewMode, days, layout, gridLayout, viewW, viewH, gridOffsetX, gridOffsetY])
+
+  // ── Month label positions ─────────────────────────────────────────────
+  const monthLabelPositions = useMemo<MonthLabelPos[]>(() => {
+    const { cellSize } = gridLayout
+    const labelWidthPx = MONTH_LABEL_COLS * cellSize
+    const contentWidth = labelWidthPx + 31 * cellSize
+    const labelScreenX = (viewW - contentWidth) / 2
+    const rowHeightPx = (viewH - 2 * cellSize) / 12
+    return Array.from({ length: 12 }, (_, month) => ({
+      month,
+      x: labelScreenX - gridOffsetX,
+      y: cellSize + month * rowHeightPx + rowHeightPx / 2 - gridOffsetY,
+    }))
+  }, [gridLayout, viewW, viewH, gridOffsetX, gridOffsetY])
+
+  const todayMonth = new Date().getMonth()
+
   // ── Arrow key navigation ─────────────────────────────────────────────
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -146,6 +193,11 @@ export default function App() {
             days={days}
             onDayClick={handleDayClick}
             selectedDayIndex={selectedDayIndex}
+            viewMode={viewMode}
+            pixelPositions={pixelPositions}
+            monthLabelPositions={monthLabelPositions}
+            staggerDelay={staggerDelay}
+            todayMonth={todayMonth}
           />
         </motion.div>
 

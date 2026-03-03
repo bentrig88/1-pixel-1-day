@@ -7,6 +7,9 @@ import styles from './Pixel.module.css'
 interface Props {
   day: DayInfo
   size: number
+  x: number
+  y: number
+  delay: number
   onClick: (dayIndex: number) => void
   isSelected?: boolean
   isDimmed?: boolean
@@ -16,7 +19,7 @@ const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December']
 
-export function Pixel({ day, size, onClick, isSelected, isDimmed }: Props) {
+export function Pixel({ day, size, x, y, delay, onClick, isSelected, isDimmed }: Props) {
   const isBlinking = day.state === 'today' && !isSelected && !isDimmed
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
 
@@ -32,8 +35,11 @@ export function Pixel({ day, size, onClick, isSelected, isDimmed }: Props) {
           isDimmed ? styles.dimmed : '',
           isSelected ? styles.selected : '',
         ].join(' ')}
-        style={{ width: size, height: size }}
+        style={{ position: 'absolute', left: 0, top: 0, width: size, height: size }}
+        initial={{ x, y }}
         animate={{
+          x,
+          y,
           opacity: isDimmed ? 0.15 : isBlinking ? [1, 1, 0.25, 1, 1] : 1,
           scale: 1,
         }}
@@ -46,6 +52,8 @@ export function Pixel({ day, size, onClick, isSelected, isDimmed }: Props) {
           transition: { type: 'spring', stiffness: 400, damping: 25 },
         }}
         transition={{
+          x: { type: 'tween', duration: 0.5, ease: [0.65, 0, 0.35, 1], delay },
+          y: { type: 'tween', duration: 0.5, ease: [0.65, 0, 0.35, 1], delay },
           opacity: isBlinking
             ? { duration: 4, repeat: Infinity, ease: 'easeInOut', times: [0, 0.25, 0.5, 0.75, 1] }
             : { type: 'tween', duration: 0.5, ease: [0.65, 0, 0.35, 1] },
