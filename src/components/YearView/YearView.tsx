@@ -103,11 +103,11 @@ export function YearView({
                   fontFamily: 'var(--font-mono)',
                   fontSize: Math.max(8, pixelSize * 0.8),
                   whiteSpace: 'nowrap',
-                  background: '#fff',
+                  background: 'var(--theme-surface)',
                   padding: `0 ${gap * 2}px`,
                   color: month === todayMonth
-                    ? 'var(--color-pixel-today)'
-                    : '#888',
+                    ? 'var(--theme-pixel-today)'
+                    : 'var(--theme-label-idle)',
                 }}
               >
                 {MONTH_NAMES[month]}
@@ -142,8 +142,8 @@ export function YearView({
                   background: '#fff',
                   padding: `0 ${gap * 2}px`,
                   color: week === todayWeek
-                    ? 'var(--color-pixel-today)'
-                    : '#888',
+                    ? 'var(--theme-pixel-today)'
+                    : 'var(--theme-label-idle)',
                 }}
               >
                 Week {week + 1}

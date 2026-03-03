@@ -3,8 +3,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  background: #1a1a1a;
-  color: #ccc;
+  background: var(--theme-bar-bg);
+  color: var(--theme-bar-text);
   font-family: var(--font-mono);
   letter-spacing: 0.03em;
   flex-shrink: 0;
@@ -18,7 +18,11 @@
 }
 
 .label {
-  color: #999;
+  color: var(--theme-bar-muted);
+}
+
+.labelGap {
+  margin-left: 48px;
 }
 
 /* ── Dropdown ───────────────────────────────────────────────────────── */
@@ -26,7 +30,7 @@
   position: relative;
 }
 
-/* invisible zero-height element that sets the container width to fit "Visual Year" */
+/* invisible zero-height element that sets the container width */
 .sizer {
   height: 0;
   overflow: hidden;
@@ -41,9 +45,9 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  background: white;
+  background: var(--theme-surface);
   border: none;
-  color: #1a1a1a;
+  color: var(--theme-surface-text);
   font-family: var(--font-mono);
   font-size: inherit;
   letter-spacing: 0.03em;
@@ -53,7 +57,7 @@
 }
 
 .trigger:hover {
-  background: #f0f0f0;
+  background: var(--theme-surface-hover);
 }
 
 .arrow {
@@ -72,8 +76,8 @@
   bottom: calc(100% + 6px);
   left: 0;
   width: 100%;
-  background: white;
-  color: #1a1a1a;
+  background: var(--theme-surface);
+  color: var(--theme-surface-text);
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -88,21 +92,21 @@
   letter-spacing: 0.03em;
   cursor: pointer;
   text-align: center;
-  color: #1a1a1a;
+  color: var(--theme-surface-text);
   width: 100%;
 }
 
 .option:hover {
-  background: #e8e8e8;
+  background: var(--theme-bg);
 }
 
 .active {
-  color: var(--color-pixel-today);
+  color: var(--theme-pixel-today);
 }
 
 .divider {
   height: 1px;
-  background: #e0e0e0;
+  background: var(--theme-divider);
   margin: 4px 0;
 }
 
@@ -113,9 +117,9 @@
 }
 
 .brandWhite {
-  color: #ccc;
+  color: var(--theme-bar-text);
 }
 
 .brandRed {
-  color: var(--color-pixel-today);
+  color: var(--theme-pixel-today);
 }

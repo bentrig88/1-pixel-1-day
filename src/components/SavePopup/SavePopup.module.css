@@ -9,8 +9,8 @@
 }
 
 .card {
-  background: #2a2a2a;
-  color: #ffffff;
+  background: var(--theme-panel-bg);
+  color: var(--theme-panel-text);
   font-family: var(--font-mono);
   width: 360px;
   padding: 32px;
@@ -29,7 +29,7 @@
   background: transparent;
   border: none;
   border-bottom: 1px solid rgba(255, 255, 255, 0.4);
-  color: #ffffff;
+  color: var(--theme-panel-text);
   font-family: var(--font-mono);
   font-size: 16px;
   padding: 8px 0;
@@ -65,13 +65,13 @@
 
 .cancelBtn:hover {
   border-color: rgba(255, 255, 255, 0.6);
-  color: #ffffff;
+  color: var(--theme-panel-text);
 }
 
 .saveBtn {
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.4);
-  color: #ffffff;
+  color: var(--theme-panel-text);
   font-family: var(--font-mono);
   font-size: 13px;
   letter-spacing: 0.1em;

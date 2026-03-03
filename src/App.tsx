@@ -6,6 +6,7 @@ import { DayDetail } from './components/DayDetail/DayDetail'
 import { TopBar } from './components/TopBar/TopBar'
 import { BottomBar, type ViewMode } from './components/BottomBar/BottomBar'
 import { SavePopup } from './components/SavePopup/SavePopup'
+import { THEMES, applyTheme, DEFAULT_THEME_ID } from './data/themes'
 import type { DayInfo } from './hooks/useYear'
 import styles from './App.module.css'
 
@@ -74,6 +75,16 @@ export default function App() {
   const [editPositions, setEditPositions] = useState<{ col: number; row: number }[] | null>(null)
   const [draggingDayIndex, setDraggingDayIndex] = useState<number | null>(null)
   const [showSavePopup, setShowSavePopup] = useState(false)
+
+  // ── Theme state ───────────────────────────────────────────────────────
+  const [activeThemeId, setActiveThemeId] = useState<string>(
+    () => localStorage.getItem('1p1d-theme') ?? DEFAULT_THEME_ID
+  )
+  useEffect(() => {
+    const theme = THEMES.find(t => t.id === activeThemeId) ?? THEMES[0]
+    applyTheme(theme)
+    localStorage.setItem('1p1d-theme', activeThemeId)
+  }, [activeThemeId])
 
   // Persist custom layouts whenever they change
   useEffect(() => {
@@ -538,6 +549,9 @@ export default function App() {
         customLayouts={customLayouts}
         activeCustomId={activeCustomId}
         onCustomLayoutSelect={handleCustomLayoutSelect}
+        themes={THEMES}
+        activeThemeId={activeThemeId}
+        onThemeChange={setActiveThemeId}
       />
 
       <SavePopup

@@ -48,8 +48,8 @@
 }
 
 .ctrlBtn {
-  background: #1a1a1a;
-  color: #ffffff;
+  background: var(--theme-bar-bg);
+  color: var(--theme-bar-text);
   border: none;
   font-family: var(--font-mono);
   font-size: inherit;
@@ -61,16 +61,16 @@
 
 .ctrlBtn:hover {
   opacity: 1;
-  background: #2a2a2a;
+  background: var(--theme-panel-bg);
 }
 
 .ctrlBtnDanger {
-  background: #ffffff;
-  border: 2px solid var(--color-pixel-today);
-  color: var(--color-pixel-today);
+  background: var(--theme-surface);
+  border: 2px solid var(--theme-pixel-today);
+  color: var(--theme-pixel-today);
 }
 
 .ctrlBtnDanger:hover {
-  background: rgba(204, 34, 0, 0.08);
+  background: color-mix(in srgb, var(--theme-pixel-today) 8%, transparent);
   opacity: 1;
 }

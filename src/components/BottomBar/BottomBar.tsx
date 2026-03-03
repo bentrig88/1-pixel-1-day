@@ -19,27 +19,40 @@ interface Props {
   customLayouts: { id: string; name: string }[]
   activeCustomId: string | null
   onCustomLayoutSelect: (id: string) => void
+  themes: { id: string; name: string }[]
+  activeThemeId: string
+  onThemeChange: (id: string) => void
 }
 
-export function BottomBar({ height, fontSize, viewMode, onViewModeChange, customLayouts, activeCustomId, onCustomLayoutSelect }: Props) {
+export function BottomBar({
+  height, fontSize, viewMode, onViewModeChange, customLayouts, activeCustomId, onCustomLayoutSelect,
+  themes, activeThemeId, onThemeChange,
+}: Props) {
   const [isOpen, setIsOpen] = useState(false)
+  const [isThemeOpen, setIsThemeOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const themeDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsOpen(false)
       }
+      if (themeDropdownRef.current && !themeDropdownRef.current.contains(e.target as Node)) {
+        setIsThemeOpen(false)
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Determine the label shown in the trigger button
+  // Determine the label shown in the view mode trigger
   const activeLayout = customLayouts.find(l => l.id === activeCustomId)
   const triggerLabel = activeLayout
     ? activeLayout.name
     : (FIXED_OPTIONS.find(o => o.value === viewMode)?.label ?? 'Visual Year')
+
+  const activeThemeName = themes.find(t => t.id === activeThemeId)?.name ?? activeThemeId
 
   return (
     <footer className={styles.bar} style={{ height, fontSize }}>
@@ -81,6 +94,37 @@ export function BottomBar({ height, fontSize, viewMode, onViewModeChange, custom
                     onClick={() => { onCustomLayoutSelect(layout.id); setIsOpen(false) }}
                   >
                     {layout.name}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <span className={`${styles.label} ${styles.labelGap}`}>Theme :</span>
+        <div className={styles.dropdown} ref={themeDropdownRef}>
+          <div className={styles.sizer} aria-hidden="true">Retro</div>
+          <button className={styles.trigger} onClick={() => setIsThemeOpen(o => !o)}>
+            {activeThemeName}
+            <span className={`${styles.arrow} ${isThemeOpen ? styles.arrowOpen : ''}`}>▼</span>
+          </button>
+          <AnimatePresence>
+            {isThemeOpen && (
+              <motion.div
+                className={styles.menu}
+                initial={{ opacity: 0, scaleY: 0 }}
+                animate={{ opacity: 1, scaleY: 1 }}
+                exit={{ opacity: 0, scaleY: 0 }}
+                transition={{ type: 'tween', duration: 0.15, ease: [0.65, 0, 0.35, 1] }}
+                style={{ transformOrigin: 'bottom' }}
+              >
+                {themes.map(theme => (
+                  <button
+                    key={theme.id}
+                    className={`${styles.option} ${theme.id === activeThemeId ? styles.active : ''}`}
+                    onClick={() => { onThemeChange(theme.id); setIsThemeOpen(false) }}
+                  >
+                    {theme.name}
                   </button>
                 ))}
               </motion.div>

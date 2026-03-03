@@ -5,14 +5,39 @@
 }
 
 :root {
-  --color-bg: #e8e8e8;
-  --color-pixel-past: #b0b0b0;
-  --color-pixel-future: #2a2a2a;
-  --color-pixel-today: #cc2200;
-  --color-pixel-gap: #e8e8e8;
-  --color-text: #1a1a1a;
-  --color-text-muted: #888;
-  --color-accent: #cc2200;
+  /* ── Theme variables — defaults = "Retro" ──────────────────────────────
+     These are overridden by JS (applyTheme) when the user picks a theme.
+     To define a new theme, edit src/data/themes.ts.                      */
+  --theme-bg:                  #e8e8e8;
+  --theme-grid-cell:           #f0f0f0;
+  --theme-pixel-past:          #b0b0b0;
+  --theme-pixel-today:         #cc2200;
+  --theme-pixel-future:        #2a2a2a;
+  --theme-pixel-past-hover:    #c8c8c8;
+  --theme-pixel-today-hover:   #e03818;
+  --theme-pixel-future-hover:  #484848;
+  --theme-bar-bg:              #1a1a1a;
+  --theme-bar-text:            #cccccc;
+  --theme-bar-muted:           #999999;
+  --theme-surface:             #ffffff;
+  --theme-surface-hover:       #f0f0f0;
+  --theme-surface-text:        #1a1a1a;
+  --theme-panel-bg:            #2a2a2a;
+  --theme-panel-text:          #ffffff;
+  --theme-label-idle:          #888888;
+  --theme-divider:             #e0e0e0;
+
+  /* ── Legacy aliases — existing component CSS keeps working ────────────
+     Anything using var(--color-*) automatically reflects the active theme. */
+  --color-bg:           var(--theme-bg);
+  --color-pixel-past:   var(--theme-pixel-past);
+  --color-pixel-future: var(--theme-pixel-future);
+  --color-pixel-today:  var(--theme-pixel-today);
+  --color-pixel-gap:    var(--theme-bg);
+  --color-text:         var(--theme-surface-text);
+  --color-text-muted:   var(--theme-label-idle);
+  --color-accent:       var(--theme-pixel-today);
+
   --font-mono: 'Pixelify Sans', monospace;
 }
 
@@ -22,8 +47,8 @@ html, body, #root {
 }
 
 body {
-  background: var(--color-bg);
-  color: var(--color-text);
+  background: var(--theme-bg);
+  color: var(--theme-surface-text);
   font-family: var(--font-mono);
   font-size: 13px;
   overflow: hidden;
