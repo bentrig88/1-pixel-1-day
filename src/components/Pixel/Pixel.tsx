@@ -31,7 +31,7 @@ export function Pixel({ day, size, x, y, delay, scaleDelay, moveDuration, opacit
 
   const dateLabel = `${WEEKDAYS[day.date.getDay()]} ${day.date.getDate()} ${MONTHS[day.date.getMonth()]} ${day.date.getFullYear()}`
 
-  const editScale  = isDragging ? 1.5 : isEditMode ? 1.3 : 1
+  const editScale  = isDragging ? 1.5 : 1
   const editFilter = isDragging
     ? 'drop-shadow(0px 10px 28px rgba(0,0,0,0.22))'
     : isEditMode
