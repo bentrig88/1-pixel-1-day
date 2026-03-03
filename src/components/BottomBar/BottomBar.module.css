@@ -1,0 +1,115 @@
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: #1a1a1a;
+  color: #ccc;
+  font-family: var(--font-mono);
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.left, .right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.label {
+  color: #999;
+}
+
+/* ── Dropdown ───────────────────────────────────────────────────────── */
+.dropdown {
+  position: relative;
+}
+
+/* invisible zero-height element that sets the container width to fit "Visual Year" */
+.sizer {
+  height: 0;
+  overflow: hidden;
+  padding: 0 16px;
+  white-space: nowrap;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: white;
+  border: none;
+  color: #1a1a1a;
+  font-family: var(--font-mono);
+  font-size: inherit;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  padding: 4px 16px;
+  box-sizing: border-box;
+}
+
+.trigger:hover {
+  background: #f0f0f0;
+}
+
+.arrow {
+  font-size: 0.8em;
+  opacity: 0.6;
+  margin-left: 8px;
+  transition: transform 0.2s ease;
+}
+
+.arrowOpen {
+  transform: rotate(180deg);
+}
+
+.menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  background: white;
+  color: #1a1a1a;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+.option {
+  background: transparent;
+  border: none;
+  padding: 8px 16px;
+  font-family: var(--font-mono);
+  font-size: inherit;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  text-align: center;
+  color: #1a1a1a;
+  width: 100%;
+}
+
+.option:hover {
+  background: #e8e8e8;
+}
+
+.active {
+  color: var(--color-pixel-today);
+}
+
+/* ── Branding ───────────────────────────────────────────────────────── */
+.branding {
+  font-weight: bold;
+  letter-spacing: 0.05em;
+}
+
+.brandWhite {
+  color: #ccc;
+}
+
+.brandRed {
+  color: var(--color-pixel-today);
+}

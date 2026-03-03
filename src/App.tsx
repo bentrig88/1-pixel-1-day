@@ -4,6 +4,7 @@ import { useYear } from './hooks/useYear'
 import { YearView, type GridLayout } from './components/YearView/YearView'
 import { DayDetail } from './components/DayDetail/DayDetail'
 import { TopBar } from './components/TopBar/TopBar'
+import { BottomBar, type ViewMode } from './components/BottomBar/BottomBar'
 import type { DayInfo } from './hooks/useYear'
 import styles from './App.module.css'
 
@@ -14,6 +15,7 @@ const MIN_SIDE_COLS = 4   // empty columns guaranteed on each side of the year
 export default function App() {
   const [reminders, setReminders] = useState<Record<number, string>>({})
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('year')
 
   // ── Responsive viewport — re-renders on resize ───────────────────────
   const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight })
@@ -47,7 +49,7 @@ export default function App() {
   const topBarFontSize = Math.round(rawCellSize * 0.65)
   const topBarAccentSize = Math.round(rawCellSize * 0.80)
 
-  const viewH = viewport.h - TOP_BAR_H
+  const viewH = viewport.h - TOP_BAR_H * 2  // subtract both top and bottom bar
   const pixelSize = Math.max(1, Math.floor(
     Math.min(
       viewW / ((layout.gridCols + MIN_SIDE_COLS * 2) * 1.15),
@@ -157,6 +159,12 @@ export default function App() {
           />
         </div>
       </main>
+      <BottomBar
+        height={TOP_BAR_H}
+        fontSize={topBarFontSize}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
     </div>
   )
 }
