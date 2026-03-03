@@ -54,7 +54,6 @@
   font-family: var(--font-mono);
   font-size: inherit;
   letter-spacing: 0.1em;
-  text-transform: uppercase;
   padding: 0.45em 1.2em;
   cursor: pointer;
   opacity: 0.9;
