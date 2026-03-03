@@ -11,6 +11,7 @@ interface Props {
   y: number
   delay: number
   moveDuration: number
+  opacityOverride: { target: number; delay: number; duration: number } | null
   onClick: (dayIndex: number) => void
   isSelected?: boolean
   isDimmed?: boolean
@@ -20,7 +21,7 @@ const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December']
 
-export function Pixel({ day, size, x, y, delay, moveDuration, onClick, isSelected, isDimmed }: Props) {
+export function Pixel({ day, size, x, y, delay, moveDuration, opacityOverride, onClick, isSelected, isDimmed }: Props) {
   const isBlinking = day.state === 'today' && !isSelected && !isDimmed
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
 
@@ -41,7 +42,9 @@ export function Pixel({ day, size, x, y, delay, moveDuration, onClick, isSelecte
         animate={{
           x,
           y,
-          opacity: isDimmed ? 0.15 : isBlinking ? [1, 1, 0.25, 1, 1] : 1,
+          opacity: opacityOverride
+            ? opacityOverride.target
+            : isDimmed ? 0.15 : isBlinking ? [1, 1, 0.25, 1, 1] : 1,
           scale: 1,
         }}
         onClick={e => { e.stopPropagation(); onClick(day.dayIndex) }}
@@ -55,9 +58,11 @@ export function Pixel({ day, size, x, y, delay, moveDuration, onClick, isSelecte
         transition={{
           x: { type: 'tween', duration: moveDuration, ease: [0.65, 0, 0.35, 1], delay },
           y: { type: 'tween', duration: moveDuration, ease: [0.65, 0, 0.35, 1], delay },
-          opacity: isBlinking
-            ? { duration: 4, repeat: Infinity, ease: 'easeInOut', times: [0, 0.25, 0.5, 0.75, 1] }
-            : { type: 'tween', duration: 0.5, ease: [0.65, 0, 0.35, 1] },
+          opacity: opacityOverride
+            ? { type: 'tween', duration: opacityOverride.duration, delay: opacityOverride.delay }
+            : isBlinking
+              ? { duration: 4, repeat: Infinity, ease: 'easeInOut', times: [0, 0.25, 0.5, 0.75, 1] }
+              : { type: 'tween', duration: 0.5, ease: [0.65, 0, 0.35, 1] },
         }}
       />
       {tooltipPos && !isSelected && createPortal(

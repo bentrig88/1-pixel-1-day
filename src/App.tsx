@@ -13,12 +13,30 @@ const DETAIL_SIZE = 400   // px — DayDetail is a square; zoom is derived from 
 const MIN_SIDE_COLS = 4   // empty columns guaranteed on each side of the year
 const GRID_SCALE = 0.8    // reduce grid size to 80% of max to avoid oversized squares
 
+type FadeTransition = {
+  phase: 'out' | 'in'
+  rankOut: number[]  // rankOut[i] = position of pixel i in the fade-out order
+  rankIn: number[]   // rankIn[i]  = position of pixel i in the fade-in order
+  oldPositions: { x: number; y: number }[]
+} | null
+
+function randomRanks(n: number): number[] {
+  const arr = Array.from({ length: n }, (_, i) => i)
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+  }
+  return arr
+}
+
 export default function App() {
   const [reminders, setReminders] = useState<Record<number, string>>({})
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('year')
   const [scatterPositions, setScatterPositions] = useState<{ x: number; y: number }[] | null>(null)
+  const [fadeTransition, setFadeTransition] = useState<FadeTransition>(null)
   const scatterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const transitionGenRef = useRef(0)
 
   // ── Responsive viewport — re-renders on resize ───────────────────────
   const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight })
@@ -86,8 +104,8 @@ export default function App() {
   // ── View mode stagger — only active on the render where mode changes ──
   const MONTH_LABEL_COLS = 8  // cell-widths reserved for month name labels
   const prevViewModeRef = useRef<ViewMode>(viewMode)
-  // No stagger during scatter phase — pixels move simultaneously
-  const staggerDelay = prevViewModeRef.current !== viewMode && scatterPositions === null
+  // Stagger only for direct transition — suppressed during scatter and fade
+  const staggerDelay = prevViewModeRef.current !== viewMode && scatterPositions === null && fadeTransition === null
     ? 1.0 / (layout.totalDays - 1)
     : 0
   useEffect(() => { prevViewModeRef.current = viewMode }, [viewMode])
@@ -126,12 +144,27 @@ export default function App() {
     }))
   }, [gridLayout])
 
+  // ── Per-pixel opacity override for fade transition ───────────────────
+  const pixelOverrides = useMemo(() => {
+    if (!fadeTransition) return null
+    const stagger = 0.5 / (days.length - 1)
+    return days.map(day => {
+      const rank = fadeTransition.phase === 'out'
+        ? fadeTransition.rankOut[day.dayIndex]
+        : fadeTransition.rankIn[day.dayIndex]
+      return { target: fadeTransition.phase === 'out' ? 0 : 1, delay: rank * stagger, duration: 0.4 }
+    })
+  }, [fadeTransition, days])
+
   const todayMonth = new Date().getMonth()
 
   // ── Scatter transition ────────────────────────────────────────────────
-  const displayPositions = scatterPositions ?? pixelPositions
-  // Phase 1 (scatter): 0.4s fast scatter; Phase 2 / direct: 0.5s normal move
-  const moveDuration = scatterPositions !== null ? 0.4 : 0.5
+  // During fade-out keep old positions; during fade-in (or scatter/direct) use new positions
+  const displayPositions = scatterPositions
+    ?? (fadeTransition?.phase === 'out' ? fadeTransition.oldPositions : null)
+    ?? pixelPositions
+  // Scatter phase 1: fast 0.4s; fade transition: instant (0) so jump is invisible; direct: 0.5s
+  const moveDuration = scatterPositions !== null ? 0.4 : fadeTransition !== null ? 0 : 0.5
 
   // ── Camera zoom — uses pixelPositions so it works correctly in all view modes ──
   let zoomX = 0, zoomY = 0, zoomScale = 1
@@ -162,26 +195,51 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedDayIndex, layout.totalDays])
 
-  // ── View mode transition — randomly picks direct stagger or scatter ──
+  // ── View mode transition — randomly picks from 3 transition types ──
   function handleViewModeChange(newMode: ViewMode) {
     if (scatterTimerRef.current !== null) {
       clearTimeout(scatterTimerRef.current)
       scatterTimerRef.current = null
     }
-    if (Math.random() < 0.5) {
-      // Scatter transition: scatter to random grid cells, pause, then land on final positions
+    const gen = ++transitionGenRef.current
+
+    const type = Math.floor(Math.random() * 3)  // 0 = direct, 1 = scatter, 2 = fade
+
+    if (type === 1) {
+      // Scatter: fly to random grid cells, pause 300ms, land on final positions
       const pos = Array.from({ length: layout.totalDays }, () => ({
         x: Math.floor(Math.random() * bgCols) * cellSize,
         y: Math.floor(Math.random() * bgRows) * cellSize,
       }))
       setScatterPositions(pos)
+      setFadeTransition(null)
       scatterTimerRef.current = setTimeout(() => {
+        if (transitionGenRef.current !== gen) return
         setScatterPositions(null)
         scatterTimerRef.current = null
-      }, 700)  // 400ms scatter animation + 300ms pause
+      }, 700)
+    } else if (type === 2) {
+      // Fade: fade out in random order → instant position jump → fade in in random order
+      const N = layout.totalDays
+      const capturedPos = pixelPositions.map(p => ({ x: p.x, y: p.y }))
+      setFadeTransition({ phase: 'out', rankOut: randomRanks(N), rankIn: randomRanks(N), oldPositions: capturedPos })
+      setScatterPositions(null)
+      const PHASE_MS = 900  // 0.5s stagger + 0.4s fade = 0.9s per phase
+      scatterTimerRef.current = setTimeout(() => {
+        if (transitionGenRef.current !== gen) return
+        setFadeTransition(prev => prev && { ...prev, phase: 'in' })
+        scatterTimerRef.current = setTimeout(() => {
+          if (transitionGenRef.current !== gen) return
+          setFadeTransition(null)
+          scatterTimerRef.current = null
+        }, PHASE_MS)
+      }, PHASE_MS)
     } else {
-      setScatterPositions(null)  // direct stagger transition
+      // Direct: stagger pixels sequentially to final positions
+      setScatterPositions(null)
+      setFadeTransition(null)
     }
+
     setViewMode(newMode)
   }
 
@@ -225,6 +283,7 @@ export default function App() {
             monthLabelPositions={monthLabelPositions}
             staggerDelay={staggerDelay}
             moveDuration={moveDuration}
+            pixelOverrides={pixelOverrides}
             todayMonth={todayMonth}
           />
         </motion.div>
