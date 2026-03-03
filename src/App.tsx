@@ -17,6 +17,8 @@ export default function App() {
   const [reminders, setReminders] = useState<Record<number, string>>({})
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('year')
+  const [scatterPositions, setScatterPositions] = useState<{ x: number; y: number }[] | null>(null)
+  const scatterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Responsive viewport — re-renders on resize ───────────────────────
   const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight })
@@ -84,7 +86,10 @@ export default function App() {
   // ── View mode stagger — only active on the render where mode changes ──
   const MONTH_LABEL_COLS = 8  // cell-widths reserved for month name labels
   const prevViewModeRef = useRef<ViewMode>(viewMode)
-  const staggerDelay = prevViewModeRef.current !== viewMode ? 1.0 / (layout.totalDays - 1) : 0
+  // No stagger during scatter phase — pixels move simultaneously
+  const staggerDelay = prevViewModeRef.current !== viewMode && scatterPositions === null
+    ? 1.0 / (layout.totalDays - 1)
+    : 0
   useEffect(() => { prevViewModeRef.current = viewMode }, [viewMode])
 
   // ── Pixel positions per view mode ─────────────────────────────────────
@@ -123,6 +128,11 @@ export default function App() {
 
   const todayMonth = new Date().getMonth()
 
+  // ── Scatter transition ────────────────────────────────────────────────
+  const displayPositions = scatterPositions ?? pixelPositions
+  // Phase 1 (scatter): 0.4s fast scatter; Phase 2 / direct: 0.5s normal move
+  const moveDuration = scatterPositions !== null ? 0.4 : 0.5
+
   // ── Camera zoom — uses pixelPositions so it works correctly in all view modes ──
   let zoomX = 0, zoomY = 0, zoomScale = 1
   if (selectedDayIndex !== null) {
@@ -151,6 +161,29 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedDayIndex, layout.totalDays])
+
+  // ── View mode transition — randomly picks direct stagger or scatter ──
+  function handleViewModeChange(newMode: ViewMode) {
+    if (scatterTimerRef.current !== null) {
+      clearTimeout(scatterTimerRef.current)
+      scatterTimerRef.current = null
+    }
+    if (Math.random() < 0.5) {
+      // Scatter transition: scatter to random grid cells, pause, then land on final positions
+      const pos = Array.from({ length: layout.totalDays }, () => ({
+        x: Math.floor(Math.random() * bgCols) * cellSize,
+        y: Math.floor(Math.random() * bgRows) * cellSize,
+      }))
+      setScatterPositions(pos)
+      scatterTimerRef.current = setTimeout(() => {
+        setScatterPositions(null)
+        scatterTimerRef.current = null
+      }, 700)  // 400ms scatter animation + 300ms pause
+    } else {
+      setScatterPositions(null)  // direct stagger transition
+    }
+    setViewMode(newMode)
+  }
 
   function handleDayClick(dayIndex: number) {
     setSelectedDayIndex(dayIndex)
@@ -188,9 +221,10 @@ export default function App() {
             onDayClick={handleDayClick}
             selectedDayIndex={selectedDayIndex}
             viewMode={viewMode}
-            pixelPositions={pixelPositions}
+            pixelPositions={displayPositions}
             monthLabelPositions={monthLabelPositions}
             staggerDelay={staggerDelay}
+            moveDuration={moveDuration}
             todayMonth={todayMonth}
           />
         </motion.div>
@@ -210,7 +244,7 @@ export default function App() {
         height={TOP_BAR_H}
         fontSize={topBarFontSize}
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={handleViewModeChange}
       />
     </div>
   )

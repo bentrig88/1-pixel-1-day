@@ -33,6 +33,7 @@ interface Props {
   pixelPositions: { x: number; y: number }[]
   monthLabelPositions: MonthLabelPos[]
   staggerDelay: number
+  moveDuration: number
   todayMonth: number
 }
 
@@ -41,7 +42,7 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
 
 export function YearView({
   layout, gridLayout, days, onDayClick, selectedDayIndex,
-  viewMode, pixelPositions, monthLabelPositions, staggerDelay, todayMonth,
+  viewMode, pixelPositions, monthLabelPositions, staggerDelay, moveDuration, todayMonth,
 }: Props) {
   const { pixelSize, gap, bgCols, bgRows, gridW, gridH } = gridLayout
   const hasSel = selectedDayIndex !== null
@@ -110,6 +111,7 @@ export function YearView({
           x={pixelPositions[day.dayIndex].x}
           y={pixelPositions[day.dayIndex].y}
           delay={day.dayIndex * staggerDelay}
+          moveDuration={moveDuration}
           onClick={onDayClick}
           isSelected={day.dayIndex === selectedDayIndex}
           isDimmed={hasSel && day.dayIndex !== selectedDayIndex}

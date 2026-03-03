@@ -10,6 +10,7 @@ interface Props {
   x: number
   y: number
   delay: number
+  moveDuration: number
   onClick: (dayIndex: number) => void
   isSelected?: boolean
   isDimmed?: boolean
@@ -19,7 +20,7 @@ const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December']
 
-export function Pixel({ day, size, x, y, delay, onClick, isSelected, isDimmed }: Props) {
+export function Pixel({ day, size, x, y, delay, moveDuration, onClick, isSelected, isDimmed }: Props) {
   const isBlinking = day.state === 'today' && !isSelected && !isDimmed
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
 
@@ -52,8 +53,8 @@ export function Pixel({ day, size, x, y, delay, onClick, isSelected, isDimmed }:
           transition: { type: 'spring', stiffness: 400, damping: 25 },
         }}
         transition={{
-          x: { type: 'tween', duration: 0.5, ease: [0.65, 0, 0.35, 1], delay },
-          y: { type: 'tween', duration: 0.5, ease: [0.65, 0, 0.35, 1], delay },
+          x: { type: 'tween', duration: moveDuration, ease: [0.65, 0, 0.35, 1], delay },
+          y: { type: 'tween', duration: moveDuration, ease: [0.65, 0, 0.35, 1], delay },
           opacity: isBlinking
             ? { duration: 4, repeat: Infinity, ease: 'easeInOut', times: [0, 0.25, 0.5, 0.75, 1] }
             : { type: 'tween', duration: 0.5, ease: [0.65, 0, 0.35, 1] },
