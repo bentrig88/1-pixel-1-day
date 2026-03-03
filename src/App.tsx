@@ -9,6 +9,7 @@ import { TopBar } from './components/TopBar/TopBar'
 import { BottomBar, type ViewMode } from './components/BottomBar/BottomBar'
 import { SavePopup } from './components/SavePopup/SavePopup'
 import { NoiseOverlay } from './components/NoiseOverlay/NoiseOverlay'
+import { Fireworks } from './components/Fireworks/Fireworks'
 import { THEMES, applyTheme, DEFAULT_THEME_ID } from './data/themes'
 import { FONTS, applyFont, DEFAULT_FONT_ID } from './data/fonts'
 import { auth } from './lib/firebase'
@@ -537,6 +538,10 @@ export default function App() {
   // The active custom layout name (for save popup pre-fill when editing)
   const activeLayoutName = customLayouts.find(l => l.id === activeCustomId)?.name ?? ''
 
+  const isDec31 = selectedDay !== null
+    && selectedDay.date.getMonth() === 11
+    && selectedDay.date.getDate() === 31
+
   return (
     <div className={styles.app}>
       <NoiseOverlay opacity={0.2} />
@@ -576,6 +581,13 @@ export default function App() {
             onPixelDragStart={setDraggingDayIndex}
           />
         </motion.div>
+
+        {/* Fireworks — Dec 31 only, erupts from the zoomed pixel (viewport center) */}
+        <AnimatePresence>
+          {isDec31 && (
+            <Fireworks key="fireworks" />
+          )}
+        </AnimatePresence>
 
         {/* Overlay lives inside main so it shares the same coordinate space as the grid */}
         <div className={styles.detailOverlay}>
